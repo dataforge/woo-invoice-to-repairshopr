@@ -3,7 +3,7 @@
 Plugin Name: Woo Invoice to RepairShopr
 Plugin URI: https://github.com/dataforge/woo-invoice-to-repairshopr
 Description: Sends invoice details to RepairShopr when an invoice is paid in WooCommerce.
-Version: 1.01
+Version: 1.10
 Author: Dataforge
 GitHub Plugin URI: https://github.com/dataforge/woo-invoice-to-repairshopr
 
