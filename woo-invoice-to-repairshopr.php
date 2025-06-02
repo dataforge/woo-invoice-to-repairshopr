@@ -1,6 +1,6 @@
 <?php
 /*
-Plugin Name: WooCommerce Invoice to RepairShopr
+Plugin Name: Woo Invoice to RepairShopr
 Plugin URI: https://github.com/dataforge/woo-invoice-to-repairshopr
 Description: Sends invoice details to RepairShopr when an invoice is paid in WooCommerce.
 Version: 1.01
@@ -387,13 +387,14 @@ function woo_inv_to_rs_ajax_send_to_repairshopr() {
 add_action('admin_menu', 'woo_invoice_to_repairshopr_menu');
 
 function woo_invoice_to_repairshopr_menu() {
+    $plugin_name = 'Woo Invoice to RepairShopr'; // Keep in sync with Plugin Name in header
     add_submenu_page(
         'woocommerce',
-        'Woo Invoice to RepairShopr',
-        'Woo Invoice to RepairShopr',
+        $plugin_name,
+        $plugin_name,
         'manage_options',
         'woo-invoice-to-repairshopr',
-        'woo_invoice_to_repairshopr_settings_page'  // Changed this line
+        'woo_invoice_to_repairshopr_settings_page'
     );
 }
 
