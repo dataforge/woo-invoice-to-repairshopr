@@ -9,6 +9,10 @@ GitHub Plugin URI: https://github.com/dataforge/woo-invoice-to-repairshopr
 
 */
 
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
 function woo_inv_to_rs_get_api_key() {
     $encrypted_key = get_option('woo_inv_to_rs_api_key', '');
     if (!$encrypted_key) {
