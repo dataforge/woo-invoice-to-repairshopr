@@ -437,87 +437,110 @@ function woo_invoice_to_repairshopr_menu() {
 
 
 
-// Add a "Check for Updates Now" button and handle its action
+// Tabbed admin interface: Main and Settings
 function woo_invoice_to_repairshopr_settings_page() {
     if (!current_user_can('manage_options')) {
         wp_die(__('You do not have sufficient permissions to access this page.'));
     }
 
-    $api_key = woo_inv_to_rs_get_api_key();
-    $masked_key = '';
-    if (!empty($api_key) && strlen($api_key) > 4) {
-        $masked_key = str_repeat('*', max(0, strlen($api_key) - 4)) . substr($api_key, -4);
-    } elseif (!empty($api_key)) {
-        $masked_key = str_repeat('*', strlen($api_key));
-    }
+    // Determine active tab
+    $tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'main';
 
-    // Handle API key update
-    if (isset($_POST['woo_inv_to_rs_api_key']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
-        $submitted_key = sanitize_text_field($_POST['woo_inv_to_rs_api_key']);
-        // Only update if the submitted key is not the masked value (i.e., user entered a new key)
-        if ($submitted_key !== $masked_key && $submitted_key !== '') {
-            woo_inv_to_rs_set_api_key($submitted_key);
-            echo '<div class="updated"><p>API Key updated.</p></div>';
-            // Refresh $api_key and $masked_key after update
-            $api_key = woo_inv_to_rs_get_api_key();
-            if (!empty($api_key) && strlen($api_key) > 4) {
-                $masked_key = str_repeat('*', max(0, strlen($api_key) - 4)) . substr($api_key, -4);
-            } elseif (!empty($api_key)) {
-                $masked_key = str_repeat('*', strlen($api_key));
-            }
-        } else {
-            echo '<div class="updated"><p>API Key unchanged.</p></div>';
+    // Tab navigation
+    $tabs = [
+        'main' => 'Main',
+        'settings' => 'Settings'
+    ];
+    echo '<div class="wrap">';
+    echo '<h2 class="nav-tab-wrapper">';
+    foreach ($tabs as $tab_key => $tab_label) {
+        $active = ($tab === $tab_key) ? ' nav-tab-active' : '';
+        $url = admin_url('admin.php?page=woo-invoice-to-repairshopr&tab=' . $tab_key);
+        echo '<a href="' . esc_url($url) . '" class="nav-tab' . $active . '">' . esc_html($tab_label) . '</a>';
+    }
+    echo '</h2>';
+
+    if ($tab === 'main') {
+        // Main tab: placeholder description
+        echo '<div style="margin-top:2em;">';
+        echo '<h3>Woo Invoice to RepairShopr</h3>';
+        echo '<p>This plugin sends invoice details to RepairShopr when an invoice is paid in WooCommerce.</p>';
+        echo '<p>More features and status information will appear here in the future.</p>';
+        echo '</div>';
+    } elseif ($tab === 'settings') {
+        // Settings tab: API key and update check
+        $api_key = woo_inv_to_rs_get_api_key();
+        $masked_key = '';
+        if (!empty($api_key) && strlen($api_key) > 4) {
+            $masked_key = str_repeat('*', max(0, strlen($api_key) - 4)) . substr($api_key, -4);
+        } elseif (!empty($api_key)) {
+            $masked_key = str_repeat('*', strlen($api_key));
         }
-    }
 
-// Handle "Check for Plugin Updates" button
-if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
-    // Simulate the cron event for plugin update check
-    do_action('wp_update_plugins');
-    if (function_exists('wp_clean_plugins_cache')) {
-        wp_clean_plugins_cache(true);
+        // Handle API key update
+        if (isset($_POST['woo_inv_to_rs_api_key']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
+            $submitted_key = sanitize_text_field($_POST['woo_inv_to_rs_api_key']);
+            // Only update if the submitted key is not the masked value (i.e., user entered a new key)
+            if ($submitted_key !== $masked_key && $submitted_key !== '') {
+                woo_inv_to_rs_set_api_key($submitted_key);
+                echo '<div class="updated"><p>API Key updated.</p></div>';
+                // Refresh $api_key and $masked_key after update
+                $api_key = woo_inv_to_rs_get_api_key();
+                if (!empty($api_key) && strlen($api_key) > 4) {
+                    $masked_key = str_repeat('*', max(0, strlen($api_key) - 4)) . substr($api_key, -4);
+                } elseif (!empty($api_key)) {
+                    $masked_key = str_repeat('*', strlen($api_key));
+                }
+            } else {
+                echo '<div class="updated"><p>API Key unchanged.</p></div>';
+            }
+        }
+
+        // Handle "Trigger WP-Cron Plugin Update Check" button
+        if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
+            do_action('wp_update_plugins');
+            if (function_exists('wp_clean_plugins_cache')) {
+                wp_clean_plugins_cache(true);
+            }
+            delete_site_transient('update_plugins');
+            if (function_exists('wp_update_plugins')) {
+                wp_update_plugins();
+            }
+            $plugin_file = plugin_basename(__FILE__);
+            $update_plugins = get_site_transient('update_plugins');
+            $update_msg = '';
+            if (isset($update_plugins->response) && isset($update_plugins->response[$plugin_file])) {
+                $new_version = $update_plugins->response[$plugin_file]->new_version;
+                $update_msg = '<div class="updated"><p>Update available: version ' . esc_html($new_version) . '.</p></div>';
+            } else {
+                $update_msg = '<div class="updated"><p>No update available for this plugin.</p></div>';
+            }
+            echo $update_msg;
+        }
+        ?>
+        <div style="margin-top:2em;">
+            <form method="post" action="">
+                <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
+                <table class="form-table">
+                    <tr>
+                        <th><label for="woo_inv_to_rs_api_key">API Key</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_api_key" name="woo_inv_to_rs_api_key" value="<?php echo esc_attr($masked_key); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">For security, only the last 4 characters are shown. Enter a new key to update.</p>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button(); ?>
+            </form>
+            <form method="post" action="" style="margin-top:2em;">
+                <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
+                <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
+                <?php submit_button('Trigger WP-Cron Plugin Update Check', 'secondary'); ?>
+            </form>
+        </div>
+        <?php
     }
-    // Remove the update_plugins transient to force a check
-    delete_site_transient('update_plugins');
-    // Call the update check directly as well
-    if (function_exists('wp_update_plugins')) {
-        wp_update_plugins();
-    }
-    // Get update info
-    $plugin_file = plugin_basename(__FILE__);
-    $update_plugins = get_site_transient('update_plugins');
-    $update_msg = '';
-    if (isset($update_plugins->response) && isset($update_plugins->response[$plugin_file])) {
-        $new_version = $update_plugins->response[$plugin_file]->new_version;
-        $update_msg = '<div class="updated"><p>Update available: version ' . esc_html($new_version) . '.</p></div>';
-    } else {
-        $update_msg = '<div class="updated"><p>No update available for this plugin.</p></div>';
-    }
-    echo $update_msg;
-}
-?>
-<div class="wrap">
-    <h2>RepairShopr API Settings</h2>
-    <form method="post" action="">
-        <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
-        <table class="form-table">
-            <tr>
-                <th><label for="woo_inv_to_rs_api_key">API Key</label></th>
-                <td>
-                    <input type="text" id="woo_inv_to_rs_api_key" name="woo_inv_to_rs_api_key" value="<?php echo esc_attr($masked_key); ?>" class="regular-text" autocomplete="off">
-                    <p class="description">For security, only the last 4 characters are shown. Enter a new key to update.</p>
-                </td>
-            </tr>
-        </table>
-        <?php submit_button(); ?>
-    </form>
-    <form method="post" action="" style="margin-top:2em;">
-        <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
-        <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
-        <?php submit_button('Check for Plugin Updates', 'secondary'); ?>
-    </form>
-</div>
-<?php
+    echo '</div>';
 }
 
 // No closing PHP tag to avoid potential whitespace issues
