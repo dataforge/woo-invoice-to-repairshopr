@@ -435,70 +435,7 @@ function woo_invoice_to_repairshopr_menu() {
     );
 }
 
-/**
- * Add "Check for Updates Now" link to the plugin row on the Plugins page
- */
-add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'woo_inv_to_rs_plugin_action_links');
-function woo_inv_to_rs_plugin_action_links($links) {
-    if (current_user_can('update_plugins')) {
-        $url = wp_nonce_url(
-            admin_url('admin-post.php?action=woo_inv_to_rs_check_update_plugin'),
-            'woo_inv_to_rs_check_update_plugin'
-        );
-        $links[] = '<a href="' . esc_url($url) . '" style="color:#0073aa;font-weight:bold;">Check for Updates Now</a>';
-    }
-    return $links;
-}
 
-/**
- * Handle the "Check for Updates Now" action from the Plugins page
- */
-add_action('admin_post_woo_inv_to_rs_check_update_plugin', 'woo_inv_to_rs_handle_check_update_plugin');
-function woo_inv_to_rs_handle_check_update_plugin() {
-    // Enhanced error logging for debugging 403 issues
-    if (!current_user_can('update_plugins')) {
-        error_log('[woo-invoice-to-repairshopr] 403: User lacks update_plugins capability. User ID: ' . get_current_user_id());
-        wp_die(__('403 Forbidden: You do not have permission to update plugins. Please ensure you are logged in as an administrator.'));
-    }
-    if (!isset($_GET['_wpnonce']) || !check_admin_referer('woo_inv_to_rs_check_update_plugin')) {
-        error_log('[woo-invoice-to-repairshopr] 403: Nonce check failed. Nonce received: ' . (isset($_GET['_wpnonce']) ? $_GET['_wpnonce'] : 'none'));
-        wp_die(__('403 Forbidden: Security check failed (nonce invalid or expired). Please reload the Plugins page and try again.'));
-    }
-
-    if (function_exists('wp_clean_plugins_cache')) {
-        wp_clean_plugins_cache(true);
-    }
-    delete_site_transient('update_plugins');
-    if (function_exists('wp_update_plugins')) {
-        wp_update_plugins();
-    }
-
-    $plugin_file = plugin_basename(__FILE__);
-    $update_plugins = get_site_transient('update_plugins');
-    $notice = '';
-    if (isset($update_plugins->response) && isset($update_plugins->response[$plugin_file])) {
-        $new_version = $update_plugins->response[$plugin_file]->new_version;
-        $notice = urlencode('Update available for Woo Invoice to RepairShopr: version ' . $new_version . '.');
-    } else {
-        $notice = urlencode('No update available for Woo Invoice to RepairShopr.');
-    }
-
-    // Redirect back to the plugins page with a notice
-    $redirect_url = add_query_arg('woo_inv_to_rs_update_notice', $notice, admin_url('plugins.php'));
-    wp_redirect($redirect_url);
-    exit;
-}
-
-/**
- * Display admin notice after update check from Plugins page
- */
-add_action('admin_notices', 'woo_inv_to_rs_update_notice');
-function woo_inv_to_rs_update_notice() {
-    if (isset($_GET['woo_inv_to_rs_update_notice'])) {
-        $msg = sanitize_text_field(wp_unslash($_GET['woo_inv_to_rs_update_notice']));
-        echo '<div class="notice notice-info is-dismissible"><p>' . esc_html($msg) . '</p></div>';
-    }
-}
 
 // Add a "Check for Updates Now" button and handle its action
 function woo_invoice_to_repairshopr_settings_page() {
@@ -533,53 +470,54 @@ function woo_invoice_to_repairshopr_settings_page() {
         }
     }
 
-    // Handle "Check for Updates Now" button
-    if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
-        // Force plugin update check
-        if (function_exists('wp_clean_plugins_cache')) {
-            wp_clean_plugins_cache(true);
-        }
-        // Remove the update_plugins transient to force a check
-        delete_site_transient('update_plugins');
-        // Call the update check
-        if (function_exists('wp_update_plugins')) {
-            wp_update_plugins();
-        }
-        // Get update info
-        $plugin_file = plugin_basename(__FILE__);
-        $update_plugins = get_site_transient('update_plugins');
-        $update_msg = '';
-        if (isset($update_plugins->response) && isset($update_plugins->response[$plugin_file])) {
-            $new_version = $update_plugins->response[$plugin_file]->new_version;
-            $update_msg = '<div class="updated"><p>Update available: version ' . esc_html($new_version) . '.</p></div>';
-        } else {
-            $update_msg = '<div class="updated"><p>No update available for this plugin.</p></div>';
-        }
-        echo $update_msg;
+// Handle "Trigger Plugin Update Check" button
+if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
+    // Simulate the cron event for plugin update check
+    do_action('wp_update_plugins');
+    if (function_exists('wp_clean_plugins_cache')) {
+        wp_clean_plugins_cache(true);
     }
-    ?>
-    <div class="wrap">
-        <h2>RepairShopr API Settings</h2>
-        <form method="post" action="">
-            <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
-            <table class="form-table">
-                <tr>
-                    <th><label for="woo_inv_to_rs_api_key">API Key</label></th>
-                    <td>
-                        <input type="text" id="woo_inv_to_rs_api_key" name="woo_inv_to_rs_api_key" value="<?php echo esc_attr($masked_key); ?>" class="regular-text" autocomplete="off">
-                        <p class="description">For security, only the last 4 characters are shown. Enter a new key to update.</p>
-                    </td>
-                </tr>
-            </table>
-            <?php submit_button(); ?>
-        </form>
-        <form method="post" action="" style="margin-top:2em;">
-            <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
-            <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
-            <?php submit_button('Check for Updates Now', 'secondary'); ?>
-        </form>
-    </div>
-    <?php
+    // Remove the update_plugins transient to force a check
+    delete_site_transient('update_plugins');
+    // Call the update check directly as well
+    if (function_exists('wp_update_plugins')) {
+        wp_update_plugins();
+    }
+    // Get update info
+    $plugin_file = plugin_basename(__FILE__);
+    $update_plugins = get_site_transient('update_plugins');
+    $update_msg = '';
+    if (isset($update_plugins->response) && isset($update_plugins->response[$plugin_file])) {
+        $new_version = $update_plugins->response[$plugin_file]->new_version;
+        $update_msg = '<div class="updated"><p>Update available: version ' . esc_html($new_version) . '.</p></div>';
+    } else {
+        $update_msg = '<div class="updated"><p>No update available for this plugin.</p></div>';
+    }
+    echo $update_msg;
+}
+?>
+<div class="wrap">
+    <h2>RepairShopr API Settings</h2>
+    <form method="post" action="">
+        <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
+        <table class="form-table">
+            <tr>
+                <th><label for="woo_inv_to_rs_api_key">API Key</label></th>
+                <td>
+                    <input type="text" id="woo_inv_to_rs_api_key" name="woo_inv_to_rs_api_key" value="<?php echo esc_attr($masked_key); ?>" class="regular-text" autocomplete="off">
+                    <p class="description">For security, only the last 4 characters are shown. Enter a new key to update.</p>
+                </td>
+            </tr>
+        </table>
+        <?php submit_button(); ?>
+    </form>
+    <form method="post" action="" style="margin-top:2em;">
+        <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
+        <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
+        <?php submit_button('Trigger Plugin Update Check', 'secondary'); ?>
+    </form>
+</div>
+<?php
 }
 
 // No closing PHP tag to avoid potential whitespace issues
