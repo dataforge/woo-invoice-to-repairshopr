@@ -1,0 +1,29 @@
+# RepairShopr API URL Checklist
+
+1. **Check your API URL in the plugin settings:**
+   - It should look like: https://YOUR-SUBDOMAIN.repairshopr.com/api/v1
+   - Replace YOUR-SUBDOMAIN with your actual RepairShopr account subdomain.
+
+2. **Test the endpoint in your browser:**
+   - Go to: https://YOUR-SUBDOMAIN.repairshopr.com/api/v1/payment_methods
+   - If you see {"message":"Not found"}, the subdomain or path is incorrect.
+
+3. **Common mistakes:**
+   - Typo in the subdomain (e.g., "dataforgesys" vs. your actual account)
+   - Extra or missing "/api/v1" in the URL
+   - Using the wrong environment (sandbox vs. production)
+
+4. **How to find your correct subdomain:**
+   - Log in to RepairShopr in your browser. The URL in the address bar will show your subdomain.
+   - Example: If you see https://acme.repairshopr.com, your subdomain is "acme".
+
+5. **Update the plugin settings:**
+   - Go to the plugin settings page in WordPress.
+   - Enter the correct API URL.
+   - Save and refresh the page.
+
+6. **If you still see "Not found":**
+   - Double-check the subdomain and path.
+   - Contact RepairShopr support to confirm the correct API base URL for your account.
+
+If you update the API URL and the dropdown still does not populate, provide the exact API URL you are using (mask your API key) so I can help further.

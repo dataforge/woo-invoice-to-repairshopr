@@ -918,7 +918,9 @@ if (class_exists('WC_Payment_Gateways')) {
 $repairshopr_methods = array();
 $api_key = woo_inv_to_rs_get_api_key();
 $api_url = get_option('woo_inv_to_rs_api_url', 'https://dataforgesys.repairshopr.com/api/v1');
-$pm_url = rtrim($api_url, '/') . '/payment_methods';
+// Sanitize: remove any trailing endpoint (e.g., /customers, /invoices, /payment_methods)
+$api_url = preg_replace('#/(customers|invoices|payment_methods)$#', '', rtrim($api_url, '/'));
+$pm_url = $api_url . '/payment_methods';
 $repairshopr_api_error = '';
 if ($api_key) {
     $response = wp_remote_get($pm_url, array(
