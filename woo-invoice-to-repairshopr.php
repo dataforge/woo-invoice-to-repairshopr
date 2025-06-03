@@ -402,8 +402,9 @@ add_action('manage_shop_order_posts_custom_column', 'woo_inv_to_rs_order_repairs
 function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
     error_log('woo_inv_to_rs: custom column content called. $column=' . $column . ', $post_id=' . $post_id);
     if ($column == 'repairshopr') {
-        error_log('woo_inv_to_rs: rendering Send to RepairShopr button for order ' . $post_id);
-        echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($post_id) . '">Send to RepairShopr</button>';
+        error_log('woo_inv_to_rs: rendering Send Invoice and Send Payment buttons for order ' . $post_id);
+        echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($post_id) . '">Send Invoice</button> ';
+        echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($post_id) . '">Send Payment</button>';
     }
 }
 
@@ -426,7 +427,8 @@ function woo_inv_to_rs_hpos_order_repairshopr_column_content($column, $order) {
     if ($column === 'repairshopr') {
         $order_id = is_object($order) && method_exists($order, 'get_id') ? $order->get_id() : (is_numeric($order) ? $order : 0);
         if ($order_id) {
-            echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($order_id) . '">Send to RepairShopr</button>';
+            echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($order_id) . '">Send Invoice</button> ';
+            echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($order_id) . '">Send Payment</button>';
         }
     }
 }
@@ -472,6 +474,173 @@ add_action('admin_enqueue_scripts', 'woo_inv_to_rs_enqueue_admin_scripts');
 
 // AJAX handler for sending invoice to RepairShopr
 add_action('wp_ajax_woo_inv_to_rs_send_to_repairshopr', 'woo_inv_to_rs_ajax_send_to_repairshopr');
+add_action('wp_ajax_woo_inv_to_rs_send_payment_to_repairshopr', 'woo_inv_to_rs_ajax_send_payment_to_repairshopr');
+
+function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
+    error_log('woo_inv_to_rs: AJAX handler for Send Payment triggered');
+
+    if (!current_user_can('edit_shop_orders') || !check_ajax_referer('woo_inv_to_rs_nonce', 'nonce', false)) {
+        error_log('woo_inv_to_rs: Permission check failed (Send Payment)');
+        wp_send_json_error(array('message' => 'Permission denied'));
+        return;
+    }
+
+    $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
+    error_log('woo_inv_to_rs: Order ID (Send Payment): ' . $order_id);
+
+    if ($order_id > 0) {
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            error_log('woo_inv_to_rs: Order not found (Send Payment)');
+            wp_send_json_error(array('message' => 'Order not found'));
+            return;
+        }
+        if (!$order->is_paid()) {
+            error_log('woo_inv_to_rs: Order not paid (Send Payment)');
+            wp_send_json_error(array('message' => 'Order is not paid'));
+            return;
+        }
+
+        // Get payment method mapping
+        $wc_payment_method = $order->get_payment_method();
+        $payment_mapping = get_option('woo_inv_to_rs_payment_mapping', array());
+        $rs_payment_method_id = isset($payment_mapping[$wc_payment_method]) ? $payment_mapping[$wc_payment_method] : '';
+        if (!$rs_payment_method_id) {
+            error_log('woo_inv_to_rs: No RepairShopr payment method mapped for WooCommerce method: ' . $wc_payment_method);
+            wp_send_json_error(array('message' => 'No RepairShopr payment method mapped for this WooCommerce payment method.'));
+            return;
+        }
+
+        // Get customer in RepairShopr
+        $customer_email = $order->get_billing_email();
+        $customer_id = woo_inv_to_rs_get_repairshopr_customer($customer_email);
+        if (!$customer_id) {
+            $customer_id = woo_inv_to_rs_create_repairshopr_customer($order);
+            if (!$customer_id) {
+                error_log('woo_inv_to_rs: Failed to create/find customer in RepairShopr (Send Payment)');
+                wp_send_json_error(array('message' => 'Failed to create/find customer in RepairShopr.'));
+                return;
+            }
+        }
+
+        // Find invoice in RepairShopr by order number
+        $invoice_number = 'WOO-' . $order->get_order_number();
+        $api_base = get_option('woo_inv_to_rs_api_url', 'https://dataforgesys.repairshopr.com/api/v1');
+        $invoice_url = rtrim($api_base, '/') . '/invoices?number=' . urlencode($invoice_number);
+        $api_key = woo_inv_to_rs_get_api_key();
+        $invoice_id = 0;
+        if ($api_key) {
+            $response = wp_remote_get($invoice_url, array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $api_key,
+                    'Accept' => 'application/json'
+                )
+            ));
+            if (!is_wp_error($response)) {
+                $body = wp_remote_retrieve_body($response);
+                $data = json_decode($body, true);
+                if (!empty($data['invoices'][0]['id'])) {
+                    $invoice_id = $data['invoices'][0]['id'];
+                }
+            }
+        }
+        if (!$invoice_id) {
+            error_log('woo_inv_to_rs: Could not find RepairShopr invoice for order ' . $order_id . ' (number: ' . $invoice_number . ')');
+            wp_send_json_error(array('message' => 'Could not find RepairShopr invoice for this order.'));
+            return;
+        }
+
+        // Prepare payment data
+        $amount_cents = intval(round($order->get_total() * 100));
+        $address_street = $order->get_billing_address_1();
+        $address_city = $order->get_billing_city();
+        $address_zip = $order->get_billing_postcode();
+        $payment_method_name = '';
+        // Get RepairShopr payment method name for API
+        $pm_url = rtrim($api_base, '/') . '/payment_methods';
+        $rs_payment_method = '';
+        if ($api_key) {
+            $response = wp_remote_get($pm_url, array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $api_key,
+                    'Accept' => 'application/json'
+                )
+            ));
+            if (!is_wp_error($response)) {
+                $body = wp_remote_retrieve_body($response);
+                $data = json_decode($body, true);
+                if (!empty($data['payment_methods'])) {
+                    foreach ($data['payment_methods'] as $pm) {
+                        if ($pm['id'] == $rs_payment_method_id) {
+                            $payment_method_name = $pm['name'];
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!$payment_method_name) {
+            error_log('woo_inv_to_rs: Could not resolve RepairShopr payment method name for id ' . $rs_payment_method_id);
+            wp_send_json_error(array('message' => 'Could not resolve RepairShopr payment method name.'));
+            return;
+        }
+
+        // Build payment body
+        $payment_body = array(
+            'customer_id' => $customer_id,
+            'invoice_id' => $invoice_id,
+            'invoice_number' => $invoice_number,
+            'amount_cents' => $amount_cents,
+            'address_street' => $address_street,
+            'address_city' => $address_city,
+            'address_zip' => $address_zip,
+            'payment_method' => $payment_method_name,
+            'ref_num' => $order->get_transaction_id(),
+            'register_id' => 0,
+            'signature_name' => '',
+            'signature_data' => '',
+            'signature_date' => date('c'),
+            'credit_card_number' => '',
+            'date_month' => '',
+            'date_year' => '',
+            'cvv' => '',
+            'lastname' => $order->get_billing_last_name(),
+            'firstname' => $order->get_billing_first_name(),
+            'apply_payments' => new stdClass()
+        );
+
+        // Send payment to RepairShopr
+        $payment_url = rtrim($api_base, '/') . '/payments';
+        $response = wp_remote_post($payment_url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json'
+            ),
+            'body' => json_encode($payment_body)
+        ));
+
+        if (is_wp_error($response)) {
+            error_log('woo_inv_to_rs: Error sending payment to RepairShopr: ' . $response->get_error_message());
+            wp_send_json_error(array('message' => 'Error sending payment to RepairShopr: ' . $response->get_error_message()));
+            return;
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        if (!empty($data['payment']['success'])) {
+            error_log('woo_inv_to_rs: Payment successfully applied in RepairShopr for order ' . $order_id);
+            wp_send_json_success(array('message' => 'Payment successfully applied in RepairShopr.'));
+        } else {
+            error_log('woo_inv_to_rs: Failed to apply payment in RepairShopr for order ' . $order_id . '. Response: ' . $body);
+            wp_send_json_error(array('message' => 'Failed to apply payment in RepairShopr. Response: ' . $body));
+        }
+    } else {
+        error_log('woo_inv_to_rs: Invalid order ID (Send Payment)');
+        wp_send_json_error(array('message' => 'Invalid order ID'));
+    }
+}
 function woo_inv_to_rs_ajax_send_to_repairshopr() {
     error_log('woo_inv_to_rs: AJAX handler triggered');
 
@@ -602,6 +771,10 @@ function woo_invoice_to_repairshopr_settings_page() {
             update_option('woo_inv_to_rs_epf_product_id', sanitize_text_field($_POST['woo_inv_to_rs_epf_product_id']));
             update_option('woo_inv_to_rs_notes', sanitize_text_field($_POST['woo_inv_to_rs_notes']));
             update_option('woo_inv_to_rs_invoice_note', sanitize_text_field($_POST['woo_inv_to_rs_invoice_note']));
+            // Save payment mapping
+            if (isset($_POST['woo_inv_to_rs_payment_mapping']) && is_array($_POST['woo_inv_to_rs_payment_mapping'])) {
+                update_option('woo_inv_to_rs_payment_mapping', array_map('sanitize_text_field', $_POST['woo_inv_to_rs_payment_mapping']));
+            }
             update_option('woo_inv_to_rs_get_sms', isset($_POST['woo_inv_to_rs_get_sms']) ? '1' : '');
             update_option('woo_inv_to_rs_opt_out', isset($_POST['woo_inv_to_rs_opt_out']) ? '1' : '');
             update_option('woo_inv_to_rs_no_email', isset($_POST['woo_inv_to_rs_no_email']) ? '1' : '');
@@ -725,6 +898,69 @@ function woo_invoice_to_repairshopr_settings_page() {
         <span style="color:#666;font-size:90%;">(Set only if the WooCommerce order is paid)</span>
     </label>
 </td>
+                    </tr>
+                </table>
+
+                <h2 style="margin-top:2em;">Payments</h2>
+                <table class="form-table">
+                    <tr>
+                        <th>Payment Method Mapping</th>
+                        <td>
+<?php
+// Fetch WooCommerce payment gateways
+if (class_exists('WC_Payment_Gateways')) {
+    $gateways = WC_Payment_Gateways::instance()->get_available_payment_gateways();
+} else {
+    $gateways = array();
+}
+
+// Fetch RepairShopr payment methods via API
+$repairshopr_methods = array();
+$api_key = woo_inv_to_rs_get_api_key();
+$api_url = get_option('woo_inv_to_rs_api_url', 'https://dataforgesys.repairshopr.com/api/v1');
+$pm_url = rtrim($api_url, '/') . '/payment_methods';
+if ($api_key) {
+    $response = wp_remote_get($pm_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Accept' => 'application/json'
+        )
+    ));
+    if (!is_wp_error($response)) {
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        if (!empty($data['payment_methods'])) {
+            foreach ($data['payment_methods'] as $pm) {
+                $repairshopr_methods[$pm['id']] = $pm['name'];
+            }
+        }
+    }
+}
+
+// Load saved mapping
+$payment_mapping = get_option('woo_inv_to_rs_payment_mapping', array());
+
+// Render mapping UI
+if (!empty($gateways)) {
+    foreach ($gateways as $gw_id => $gw) {
+        $label = esc_html($gw->get_title());
+        $selected = isset($payment_mapping[$gw_id]) ? $payment_mapping[$gw_id] : '';
+        echo '<div style="margin-bottom:8px;">';
+        echo '<label>' . $label . ' (' . esc_html($gw_id) . '): </label>';
+        echo '<select name="woo_inv_to_rs_payment_mapping[' . esc_attr($gw_id) . ']">';
+        echo '<option value="">-- Select RepairShopr Payment Method --</option>';
+        foreach ($repairshopr_methods as $rs_id => $rs_name) {
+            $sel = selected($selected, $rs_id, false);
+            echo '<option value="' . esc_attr($rs_id) . '" ' . $sel . '>' . esc_html($rs_name) . '</option>';
+        }
+        echo '</select>';
+        echo '</div>';
+    }
+} else {
+    echo '<em>No WooCommerce payment gateways found.</em>';
+}
+?>
+                        </td>
                     </tr>
                 </table>
 
