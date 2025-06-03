@@ -470,7 +470,7 @@ function woo_invoice_to_repairshopr_settings_page() {
         }
     }
 
-// Handle "Trigger Plugin Update Check" button
+// Handle "Check for Plugin Updates" button
 if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
     // Simulate the cron event for plugin update check
     do_action('wp_update_plugins');
@@ -514,7 +514,7 @@ if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_
     <form method="post" action="" style="margin-top:2em;">
         <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
         <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
-        <?php submit_button('Trigger Plugin Update Check', 'secondary'); ?>
+        <?php submit_button('Check for Plugin Updates', 'secondary'); ?>
     </form>
 </div>
 <?php
