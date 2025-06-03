@@ -256,56 +256,63 @@ function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
     // Build line_items array from order items
     $line_items = array();
 
-    foreach ($order->get_items() as $item) {
-        $product = $item->get_product();
-        $sku = $product ? $product->get_sku() : '';
-        $product_id = $sku ? $sku : 0;
-        $quantity = $item->get_quantity();
-        $price = $quantity > 0 ? number_format($item->get_total() / $quantity, 2, '.', '') : '0.00';
+foreach ($order->get_items() as $item) {
+    $product = $item->get_product();
+    $sku = $product ? $product->get_sku() : '';
+    $product_id = $sku ? $sku : 0;
+    $quantity = $item->get_quantity();
+    $price = $quantity > 0 ? number_format($item->get_total() / $quantity, 2, '.', '') : '0.00';
 
-        $line_items[] = array(
-            'item' => $product ? $product->get_name() : $item->get_name(),
-            'product_id' => $product_id,
-            'quantity' => (int)$quantity,
-            'price' => (float)$price,
-            'taxable' => get_option('woo_inv_to_rs_taxable', '1') === '1'
-        );
-    }
+    // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
+    $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($order->get_total_tax() > 0);
+
+    $line_items[] = array(
+        'item' => $product ? $product->get_name() : $item->get_name(),
+        'product_id' => $product_id,
+        'quantity' => (int)$quantity,
+        'price' => (float)$price,
+        'taxable' => $taxable_flag
+    );
+}
 
     // Add Electronic Payment Fee as a line item if present
-    $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
-    foreach ($order->get_fees() as $fee) {
-        if ($fee->get_name() == $epf_name) {
-            $fee_total = $fee->get_total();
-            $fee_total_formatted = number_format($fee_total, 2, '.', '');
-            $line_items[] = array(
-                'item' => $epf_name,
-                'product_id' => get_option('woo_inv_to_rs_epf_product_id', '9263351'),
-                'quantity' => 1,
-                'price' => (float)$fee_total_formatted,
-                'taxable' => get_option('woo_inv_to_rs_taxable', '1') === '1'
-            );
-            break;
-        }
+$epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
+foreach ($order->get_fees() as $fee) {
+    if ($fee->get_name() == $epf_name) {
+        $fee_total = $fee->get_total();
+        $fee_total_formatted = number_format($fee_total, 2, '.', '');
+        // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
+        $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($order->get_total_tax() > 0);
+        $line_items[] = array(
+            'item' => $epf_name,
+            'product_id' => get_option('woo_inv_to_rs_epf_product_id', '9263351'),
+            'quantity' => 1,
+            'price' => (float)$fee_total_formatted,
+            'taxable' => $taxable_flag
+        );
+        break;
     }
+}
 
-    // Create invoice with line_items
-    $body = array(
-        'balance_due' => '0.00',
-        'customer_id' => $customer_id,
-        'number' => 'WOO-' . $order->get_order_number(),
-        'date' => $order->get_date_created()->format('Y-m-d\TH:i:s.000P'),
-        'customer_business_then_name' => $order->get_billing_company() ?: $order->get_formatted_billing_full_name(),
-        'due_date' => $order->get_date_created()->format('Y-m-d'),
-        'subtotal' => number_format($order->get_subtotal(), 2, '.', ''),
-        'total' => number_format($order->get_total(), 2, '.', ''),
-        'tax' => number_format($order->get_total_tax(), 2, '.', ''),
-        'verified_paid' => get_option('woo_inv_to_rs_verified_paid', '1') === '1',
-        'tech_marked_paid' => get_option('woo_inv_to_rs_tech_marked_paid', '1') === '1',
-        'is_paid' => get_option('woo_inv_to_rs_is_paid', '1') === '1',
-        'note' => get_option('woo_inv_to_rs_invoice_note', 'Order created from WooCommerce'),
-        'line_items' => $line_items
-    );
+// Create invoice with just the first line item
+$first_line_item = array_shift($line_items);
+$body = array(
+    'balance_due' => '0.00',
+    'customer_id' => $customer_id,
+    'number' => 'WOO-' . $order->get_order_number(),
+    'date' => $order->get_date_created()->format('Y-m-d\TH:i:s.000P'),
+    'customer_business_then_name' => $order->get_billing_company() ?: $order->get_formatted_billing_full_name(),
+    'due_date' => $order->get_date_created()->format('Y-m-d'),
+    'subtotal' => number_format($order->get_subtotal(), 2, '.', ''),
+    'total' => number_format($order->get_total(), 2, '.', ''),
+    'tax' => number_format($order->get_total_tax(), 2, '.', ''),
+    // Only set paid flags if the setting is enabled AND the order is paid
+    'verified_paid' => (get_option('woo_inv_to_rs_verified_paid', '1') === '1') && $order->is_paid(),
+    'tech_marked_paid' => (get_option('woo_inv_to_rs_tech_marked_paid', '1') === '1') && $order->is_paid(),
+    'is_paid' => (get_option('woo_inv_to_rs_is_paid', '1') === '1') && $order->is_paid(),
+    'note' => get_option('woo_inv_to_rs_invoice_note', 'Order created from WooCommerce'),
+    'line_items' => array($first_line_item)
+);
 
     error_log('RepairShopr API Request (Create Invoice): ' . json_encode($body));
 
@@ -334,7 +341,43 @@ function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
 
     $invoice_id = $response_data['invoice']['id'];
 
-    error_log('RepairShopr Invoice created successfully with line items. Invoice ID: ' . $invoice_id);
+    // Add remaining line items one by one
+    if (!empty($line_items)) {
+        $api_base = get_option('woo_inv_to_rs_api_url', '');
+        if ($api_base) {
+            $line_item_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id . '/line_items';
+        } else {
+            $line_item_url = 'https://dataforgesys.repairshopr.com/api/v1/invoices/' . $invoice_id . '/line_items';
+        }
+
+        foreach ($line_items as $li) {
+            $li_body = array(
+                'id' => 0,
+                'line_discount_percent' => 0,
+                'discount_dollars' => '0',
+                'item' => isset($li['item']) ? $li['item'] : '',
+                'name' => isset($li['item']) ? $li['item'] : '',
+                'price' => isset($li['price']) ? $li['price'] : 0,
+                'cost' => 0,
+                'taxable' => isset($li['taxable']) ? $li['taxable'] : false
+            );
+            error_log('RepairShopr API Request (Add Line Item): ' . json_encode($li_body));
+            $li_response = wp_remote_post($line_item_url, array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json'
+                ),
+                'body' => json_encode($li_body)
+            ));
+            error_log('RepairShopr API Response (Add Line Item): ' . wp_remote_retrieve_body($li_response));
+            if (is_wp_error($li_response)) {
+                error_log('Failed to add line item to invoice ' . $invoice_id . ': ' . $li_response->get_error_message());
+            }
+        }
+    }
+
+    error_log('RepairShopr Invoice created successfully with all line items. Invoice ID: ' . $invoice_id);
     return true;
 }
 
@@ -354,7 +397,9 @@ function woo_inv_to_rs_add_order_repairshopr_column($columns) {
 // Add content to the new column
 add_action('manage_shop_order_posts_custom_column', 'woo_inv_to_rs_order_repairshopr_column_content', 20, 2);
 function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
+    error_log('woo_inv_to_rs: custom column content called. $column=' . $column . ', $post_id=' . $post_id);
     if ($column == 'repairshopr') {
+        error_log('woo_inv_to_rs: rendering Send to RepairShopr button for order ' . $post_id);
         echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($post_id) . '">Send to RepairShopr</button>';
     }
 }
@@ -606,13 +651,29 @@ function woo_invoice_to_repairshopr_settings_page() {
                         </td>
                     </tr>
                     <tr>
-                        <th>Invoice Flags</th>
-                        <td>
-                            <label><input type="checkbox" name="woo_inv_to_rs_taxable" <?php checked($taxable, '1'); ?>> taxable</label><br>
-                            <label><input type="checkbox" name="woo_inv_to_rs_verified_paid" <?php checked($verified_paid, '1'); ?>> verified_paid</label><br>
-                            <label><input type="checkbox" name="woo_inv_to_rs_tech_marked_paid" <?php checked($tech_marked_paid, '1'); ?>> tech_marked_paid</label><br>
-                            <label><input type="checkbox" name="woo_inv_to_rs_is_paid" <?php checked($is_paid, '1'); ?>> is_paid</label>
-                        </td>
+<th>Invoice Flags</th>
+<td>
+    <label>
+        <input type="checkbox" name="woo_inv_to_rs_taxable" <?php checked($taxable, '1'); ?>>
+        taxable
+        <span style="color:#666;font-size:90%;">(Set only if the WooCommerce order is taxable and sales tax was charged)</span>
+    </label><br>
+    <label>
+        <input type="checkbox" name="woo_inv_to_rs_verified_paid" <?php checked($verified_paid, '1'); ?>>
+        verified_paid
+        <span style="color:#666;font-size:90%;">(Set only if the WooCommerce order is paid)</span>
+    </label><br>
+    <label>
+        <input type="checkbox" name="woo_inv_to_rs_tech_marked_paid" <?php checked($tech_marked_paid, '1'); ?>>
+        tech_marked_paid
+        <span style="color:#666;font-size:90%;">(Set only if the WooCommerce order is paid)</span>
+    </label><br>
+    <label>
+        <input type="checkbox" name="woo_inv_to_rs_is_paid" <?php checked($is_paid, '1'); ?>>
+        is_paid
+        <span style="color:#666;font-size:90%;">(Set only if the WooCommerce order is paid)</span>
+    </label>
+</td>
                     </tr>
                 </table>
 
