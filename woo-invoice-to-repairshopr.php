@@ -108,7 +108,7 @@ function woo_inv_to_rs_get_repairshopr_customer($email) {
     if ($api_base) {
         $base_url = rtrim($api_base, '/') . '/customers';
     } else {
-        $base_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
+        $base_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
     }
     $api_url = $base_url . '?email=' . urlencode($email);
 
@@ -144,7 +144,7 @@ function woo_inv_to_rs_create_repairshopr_customer($order) {
     if ($api_base) {
         $api_url = rtrim($api_base, '/') . '/customers';
     } else {
-        $api_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
+        $api_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
     }
 
     // Gather as many fields as possible from WooCommerce order
@@ -250,7 +250,7 @@ function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
     if ($api_base) {
         $api_url = rtrim($api_base, '/') . '/invoices';
     } else {
-        $api_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
+        $api_url = get_option('woo_inv_to_rs_invoice_url', 'https://your-subdomain.repairshopr.com/api/v1/invoices');
     }
 
     // Build line_items array from order items
@@ -347,7 +347,9 @@ $body = array(
         if ($api_base) {
             $line_item_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id . '/line_items';
         } else {
-            $line_item_url = 'https://dataforgesys.repairshopr.com/api/v1/invoices/' . $invoice_id . '/line_items';
+            // Use the default only if the user has not set the API URL
+            $line_item_url = get_option('woo_inv_to_rs_invoice_url', 'https://your-subdomain.repairshopr.com/api/v1/invoices');
+            $line_item_url = rtrim($line_item_url, '/') . '/' . $invoice_id . '/line_items';
         }
 
         foreach ($line_items as $li) {
@@ -525,8 +527,11 @@ function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
 
         // Find invoice in RepairShopr by order number
         $invoice_number = 'WOO-' . $order->get_order_number();
-        $api_base = get_option('woo_inv_to_rs_api_url', 'https://dataforgesys.repairshopr.com/api/v1');
-        $invoice_url = rtrim($api_base, '/') . '/invoices?number=' . urlencode($invoice_number);
+// Get and sanitize API base (no hardcoded default)
+$api_base = get_option('woo_inv_to_rs_api_url', '');
+// Sanitize: remove any trailing endpoint (e.g., /customers, /invoices, /payment_methods)
+$api_base = preg_replace('#/(customers|invoices|payment_methods)$#', '', rtrim($api_base, '/'));
+$invoice_url = $api_base . '/invoices?number=' . urlencode($invoice_number);
         $api_key = woo_inv_to_rs_get_api_key();
         $invoice_id = 0;
         if ($api_key) {
@@ -557,7 +562,7 @@ function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
         $address_zip = $order->get_billing_postcode();
         $payment_method_name = '';
         // Get RepairShopr payment method name for API
-        $pm_url = rtrim($api_base, '/') . '/payment_methods';
+$pm_url = $api_base . '/payment_methods';
         $rs_payment_method = '';
         if ($api_key) {
             $response = wp_remote_get($pm_url, array(
@@ -610,7 +615,7 @@ function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
         );
 
         // Send payment to RepairShopr
-        $payment_url = rtrim($api_base, '/') . '/payments';
+$payment_url = $api_base . '/payments';
         $response = wp_remote_post($payment_url, array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $api_key,
@@ -726,8 +731,8 @@ function woo_invoice_to_repairshopr_settings_page() {
 
         // Load current settings
         $api_url = get_option('woo_inv_to_rs_api_url', '');
-        $customer_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
-        $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
+        $customer_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
+        $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://your-subdomain.repairshopr.com/api/v1/invoices');
         $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
         $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
         $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
@@ -787,8 +792,8 @@ function woo_invoice_to_repairshopr_settings_page() {
             update_option('woo_inv_to_rs_is_paid', isset($_POST['woo_inv_to_rs_is_paid']) ? '1' : '');
             echo '<div class="updated"><p>Settings updated.</p></div>';
             // Refresh values
-            $customer_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
-            $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
+            $customer_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
+            $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://your-subdomain.repairshopr.com/api/v1/invoices');
             $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
             $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
             $notes = get_option('woo_inv_to_rs_notes', 'Created by WooCommerce');
@@ -917,7 +922,8 @@ if (class_exists('WC_Payment_Gateways')) {
 // Fetch RepairShopr payment methods via API
 $repairshopr_methods = array();
 $api_key = woo_inv_to_rs_get_api_key();
-$api_url = get_option('woo_inv_to_rs_api_url', 'https://dataforgesys.repairshopr.com/api/v1');
+// Get and sanitize API URL (no hardcoded default)
+$api_url = get_option('woo_inv_to_rs_api_url', '');
 // Sanitize: remove any trailing endpoint (e.g., /customers, /invoices, /payment_methods)
 $api_url = preg_replace('#/(customers|invoices|payment_methods)$#', '', rtrim($api_url, '/'));
 $pm_url = $api_url . '/payment_methods';
