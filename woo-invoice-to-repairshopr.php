@@ -532,7 +532,7 @@ function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
         if ($api_key) {
             $response = wp_remote_get($invoice_url, array(
                 'headers' => array(
-                    'Authorization' => 'Bearer ' . $api_key,
+'Authorization' => 'Bearer ' . $api_key,
                     'Accept' => 'application/json'
                 )
             ));
