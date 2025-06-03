@@ -497,6 +497,7 @@ function woo_invoice_to_repairshopr_settings_page() {
                 }
             }
             // Other settings
+            update_option('woo_inv_to_rs_api_url', esc_url_raw($_POST['woo_inv_to_rs_api_url']));
             update_option('woo_inv_to_rs_customer_url', esc_url_raw($_POST['woo_inv_to_rs_customer_url']));
             update_option('woo_inv_to_rs_invoice_url', esc_url_raw($_POST['woo_inv_to_rs_invoice_url']));
             update_option('woo_inv_to_rs_tax_rate_id', sanitize_text_field($_POST['woo_inv_to_rs_tax_rate_id']));
