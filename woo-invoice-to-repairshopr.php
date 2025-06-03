@@ -535,7 +535,7 @@ function woo_invoice_to_repairshopr_settings_page() {
             <form method="post" action="" style="margin-top:2em;">
                 <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
                 <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
-                <?php submit_button('Trigger WP-Cron Plugin Update Check', 'secondary'); ?>
+                <?php submit_button('Check for Plugin Updates', 'secondary'); ?>
             </form>
         </div>
         <?php
