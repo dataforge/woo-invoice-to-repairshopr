@@ -104,7 +104,12 @@ function woo_inv_to_rs_send_invoice_to_repairshopr($order_id) {
 }
 
 function woo_inv_to_rs_get_repairshopr_customer($email) {
-    $base_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    if ($api_base) {
+        $base_url = rtrim($api_base, '/') . '/customers';
+    } else {
+        $base_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
+    }
     $api_url = $base_url . '?email=' . urlencode($email);
 
     // Log the API request URL
@@ -135,7 +140,12 @@ function woo_inv_to_rs_get_repairshopr_customer($email) {
 }
 
 function woo_inv_to_rs_create_repairshopr_customer($order) {
-    $api_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    if ($api_base) {
+        $api_url = rtrim($api_base, '/') . '/customers';
+    } else {
+        $api_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
+    }
 
     // Gather as many fields as possible from WooCommerce order
     $billing_firstname = $order->get_billing_first_name();
@@ -236,7 +246,12 @@ function woo_inv_to_rs_create_repairshopr_customer($order) {
 }
 
 function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
-    $api_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    if ($api_base) {
+        $api_url = rtrim($api_base, '/') . '/invoices';
+    } else {
+        $api_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
+    }
 
     // Build line_items array from order items
     $line_items = array();
@@ -258,12 +273,13 @@ function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
     }
 
     // Add Electronic Payment Fee as a line item if present
+    $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
     foreach ($order->get_fees() as $fee) {
-        if ($fee->get_name() == 'Electronic Payment Fee') {
+        if ($fee->get_name() == $epf_name) {
             $fee_total = $fee->get_total();
             $fee_total_formatted = number_format($fee_total, 2, '.', '');
             $line_items[] = array(
-                'item' => 'Electronic Payment Fee',
+                'item' => $epf_name,
                 'product_id' => get_option('woo_inv_to_rs_epf_product_id', '9263351'),
                 'quantity' => 1,
                 'price' => (float)$fee_total_formatted,
@@ -448,6 +464,7 @@ function woo_invoice_to_repairshopr_settings_page() {
         $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
         $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
         $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
+        $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
         $notes = get_option('woo_inv_to_rs_notes', 'Created by WooCommerce');
         $invoice_note = get_option('woo_inv_to_rs_invoice_note', 'Order created from WooCommerce');
         $get_sms = get_option('woo_inv_to_rs_get_sms', '1');
@@ -483,6 +500,7 @@ function woo_invoice_to_repairshopr_settings_page() {
             update_option('woo_inv_to_rs_customer_url', esc_url_raw($_POST['woo_inv_to_rs_customer_url']));
             update_option('woo_inv_to_rs_invoice_url', esc_url_raw($_POST['woo_inv_to_rs_invoice_url']));
             update_option('woo_inv_to_rs_tax_rate_id', sanitize_text_field($_POST['woo_inv_to_rs_tax_rate_id']));
+            update_option('woo_inv_to_rs_epf_name', sanitize_text_field($_POST['woo_inv_to_rs_epf_name']));
             update_option('woo_inv_to_rs_epf_product_id', sanitize_text_field($_POST['woo_inv_to_rs_epf_product_id']));
             update_option('woo_inv_to_rs_notes', sanitize_text_field($_POST['woo_inv_to_rs_notes']));
             update_option('woo_inv_to_rs_invoice_note', sanitize_text_field($_POST['woo_inv_to_rs_invoice_note']));
@@ -549,20 +567,28 @@ function woo_invoice_to_repairshopr_settings_page() {
                             <p class="description">For security, only the last 4 characters are shown. Enter a new key to update.</p>
                         </td>
                     </tr>
+                    <tr>
+                        <th><label for="woo_inv_to_rs_api_url">API URL</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_api_url" name="woo_inv_to_rs_api_url" value="<?php echo esc_attr($api_url); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Example: <code>https://your-subdomain.repairshopr.com/api/v1</code></p>
+                        </td>
+                    </tr>
                 </table>
 
                 <h2 style="margin-top:2em;">Invoice Details</h2>
                 <table class="form-table">
                     <tr>
-                        <th><label for="woo_inv_to_rs_invoice_url">Invoice API URL</label></th>
-                        <td>
-                            <input type="text" id="woo_inv_to_rs_invoice_url" name="woo_inv_to_rs_invoice_url" value="<?php echo esc_attr($invoice_url); ?>" class="regular-text" autocomplete="off">
-                        </td>
-                    </tr>
-                    <tr>
                         <th><label for="woo_inv_to_rs_tax_rate_id">Tax Rate ID</label></th>
                         <td>
                             <input type="number" id="woo_inv_to_rs_tax_rate_id" name="woo_inv_to_rs_tax_rate_id" value="<?php echo esc_attr($tax_rate_id); ?>" class="regular-text" autocomplete="off">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="woo_inv_to_rs_epf_name">Electronic Payment Fee Name</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_epf_name" name="woo_inv_to_rs_epf_name" value="<?php echo esc_attr($epf_name); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Enter the exact name of the fee as it appears in your WooCommerce orders (e.g., "Credit Card Surcharge", "Online Payment Fee"). The plugin will look for a fee line with this name in each order and export it to RepairShopr.</p>
                         </td>
                     </tr>
                     <tr>
@@ -591,12 +617,6 @@ function woo_invoice_to_repairshopr_settings_page() {
                 <h2 style="margin-top:2em;">Customer Details</h2>
                 <table class="form-table">
                     <tr>
-                        <th><label for="woo_inv_to_rs_customer_url">Customer API URL</label></th>
-                        <td>
-                            <input type="text" id="woo_inv_to_rs_customer_url" name="woo_inv_to_rs_customer_url" value="<?php echo esc_attr($customer_url); ?>" class="regular-text" autocomplete="off">
-                        </td>
-                    </tr>
-                    <tr>
                         <th><label for="woo_inv_to_rs_notes">Customer Notes</label></th>
                         <td>
                             <input type="text" id="woo_inv_to_rs_notes" name="woo_inv_to_rs_notes" value="<?php echo esc_attr($notes); ?>" class="regular-text" autocomplete="off">
@@ -606,11 +626,11 @@ function woo_invoice_to_repairshopr_settings_page() {
                         <th>Customer Flags</th>
                         <td>
                             <label><input type="checkbox" name="woo_inv_to_rs_get_sms" <?php checked($get_sms, '1'); ?>> get_sms</label><br>
-                            <label><input type="checkbox" name="woo_inv_to_rs_opt_out" <?php checked($opt_out, '1'); ?>> opt_out</label><br>
-                            <label><input type="checkbox" name="woo_inv_to_rs_no_email" <?php checked($no_email, '1'); ?>> no_email</label><br>
                             <label><input type="checkbox" name="woo_inv_to_rs_get_billing" <?php checked($get_billing, '1'); ?>> get_billing</label><br>
                             <label><input type="checkbox" name="woo_inv_to_rs_get_marketing" <?php checked($get_marketing, '1'); ?>> get_marketing</label><br>
-                            <label><input type="checkbox" name="woo_inv_to_rs_get_reports" <?php checked($get_reports, '1'); ?>> get_reports</label>
+                            <label><input type="checkbox" name="woo_inv_to_rs_get_reports" <?php checked($get_reports, '1'); ?>> get_reports</label><br>
+                            <label><input type="checkbox" name="woo_inv_to_rs_opt_out" <?php checked($opt_out, '1'); ?>> opt_out</label><br>
+                            <label><input type="checkbox" name="woo_inv_to_rs_no_email" <?php checked($no_email, '1'); ?>> no_email</label>
                         </td>
                     </tr>
                 </table>
