@@ -381,7 +381,10 @@ $body = array(
     return true;
 }
 
-// Add a new column to the WooCommerce orders table
+/**
+ * Add RepairShopr column to WooCommerce Orders table (legacy and HPOS).
+ */
+// Legacy orders table
 add_filter('manage_edit-shop_order_columns', 'woo_inv_to_rs_add_order_repairshopr_column');
 function woo_inv_to_rs_add_order_repairshopr_column($columns) {
     $new_columns = array();
@@ -394,7 +397,7 @@ function woo_inv_to_rs_add_order_repairshopr_column($columns) {
     return $new_columns;
 }
 
-// Add content to the new column
+// Legacy orders table content
 add_action('manage_shop_order_posts_custom_column', 'woo_inv_to_rs_order_repairshopr_column_content', 20, 2);
 function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
     error_log('woo_inv_to_rs: custom column content called. $column=' . $column . ', $post_id=' . $post_id);
@@ -404,10 +407,35 @@ function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
     }
 }
 
+// HPOS orders table column
+add_filter('woocommerce_shop_order_list_table_columns', 'woo_inv_to_rs_hpos_add_order_repairshopr_column', 20);
+function woo_inv_to_rs_hpos_add_order_repairshopr_column($columns) {
+    $new_columns = array();
+    foreach ($columns as $key => $column) {
+        $new_columns[$key] = $column;
+        if ($key === 'order_number') {
+            $new_columns['repairshopr'] = __('RepairShopr', 'woocommerce-invoice-to-repairshopr');
+        }
+    }
+    return $new_columns;
+}
+
+// HPOS orders table content
+add_action('woocommerce_shop_order_list_table_custom_column', 'woo_inv_to_rs_hpos_order_repairshopr_column_content', 20, 2);
+function woo_inv_to_rs_hpos_order_repairshopr_column_content($column, $order) {
+    if ($column === 'repairshopr') {
+        $order_id = is_object($order) && method_exists($order, 'get_id') ? $order->get_id() : (is_numeric($order) ? $order : 0);
+        if ($order_id) {
+            echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($order_id) . '">Send to RepairShopr</button>';
+        }
+    }
+}
+
 /**
  * Enqueue JavaScript for AJAX functionality on legacy and new WooCommerce orders pages.
  */
 function woo_inv_to_rs_enqueue_admin_scripts($hook) {
+    error_log('woo_inv_to_rs: admin_enqueue_scripts called. $hook=' . $hook . ', $_GET[page]=' . (isset($_GET['page']) ? $_GET['page'] : 'NOT SET'));
     // Legacy orders page (edit.php?post_type=shop_order)
     if ('edit.php' === $hook && isset($_GET['post_type']) && $_GET['post_type'] === 'shop_order') {
         error_log('woo_inv_to_rs: Attempting to enqueue admin script (legacy orders page)');
