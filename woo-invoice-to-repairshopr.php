@@ -460,6 +460,7 @@ function woo_invoice_to_repairshopr_settings_page() {
         }
 
         // Load current settings
+        $api_url = get_option('woo_inv_to_rs_api_url', '');
         $customer_url = get_option('woo_inv_to_rs_customer_url', 'https://dataforgesys.repairshopr.com/api/v1/customers');
         $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://dataforgesys.repairshopr.com/api/v1/invoices');
         $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
