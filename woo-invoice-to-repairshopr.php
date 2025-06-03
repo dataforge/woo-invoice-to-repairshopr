@@ -455,8 +455,14 @@ function woo_inv_to_rs_plugin_action_links($links) {
  */
 add_action('admin_post_woo_inv_to_rs_check_update_plugin', 'woo_inv_to_rs_handle_check_update_plugin');
 function woo_inv_to_rs_handle_check_update_plugin() {
-    if (!current_user_can('update_plugins') || !check_admin_referer('woo_inv_to_rs_check_update_plugin')) {
-        wp_die(__('You do not have permission to do this.'));
+    // Enhanced error logging for debugging 403 issues
+    if (!current_user_can('update_plugins')) {
+        error_log('[woo-invoice-to-repairshopr] 403: User lacks update_plugins capability. User ID: ' . get_current_user_id());
+        wp_die(__('403 Forbidden: You do not have permission to update plugins. Please ensure you are logged in as an administrator.'));
+    }
+    if (!isset($_GET['_wpnonce']) || !check_admin_referer('woo_inv_to_rs_check_update_plugin')) {
+        error_log('[woo-invoice-to-repairshopr] 403: Nonce check failed. Nonce received: ' . (isset($_GET['_wpnonce']) ? $_GET['_wpnonce'] : 'none'));
+        wp_die(__('403 Forbidden: Security check failed (nonce invalid or expired). Please reload the Plugins page and try again.'));
     }
 
     if (function_exists('wp_clean_plugins_cache')) {
