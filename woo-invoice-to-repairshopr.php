@@ -404,18 +404,41 @@ function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
     }
 }
 
-// Enqueue JavaScript for AJAX functionality
+/**
+ * Enqueue JavaScript for AJAX functionality on legacy and new WooCommerce orders pages.
+ */
 function woo_inv_to_rs_enqueue_admin_scripts($hook) {
-    if ('edit.php' !== $hook || !isset($_GET['post_type']) || $_GET['post_type'] !== 'shop_order') {
-        return;
+    // Legacy orders page (edit.php?post_type=shop_order)
+    if ('edit.php' === $hook && isset($_GET['post_type']) && $_GET['post_type'] === 'shop_order') {
+        error_log('woo_inv_to_rs: Attempting to enqueue admin script (legacy orders page)');
+        wp_enqueue_script('wir-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', array('jquery'), '1.0', true);
+        wp_localize_script('wir-admin-script', 'woo_inv_to_rs_ajax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('woo_inv_to_rs_nonce')
+        ));
+        error_log('woo_inv_to_rs: Admin script enqueued (legacy)');
     }
-    error_log('woo_inv_to_rs: Attempting to enqueue admin script');
-    wp_enqueue_script('wir-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', array('jquery'), '1.0', true);
-    wp_localize_script('wir-admin-script', 'woo_inv_to_rs_ajax', array(
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('woo_inv_to_rs_nonce')
-    ));
-    error_log('woo_inv_to_rs: Admin script enqueued');
+
+    // New WooCommerce Admin (wc-orders) React-based page
+    if (
+        $hook === 'toplevel_page_wc-orders' ||
+        (isset($_GET['page']) && $_GET['page'] === 'wc-orders')
+    ) {
+        error_log('woo_inv_to_rs: Attempting to enqueue admin script (wc-orders React page)');
+        wp_enqueue_script(
+            'wir-admin-wc-orders',
+            plugin_dir_url(__FILE__) . 'admin-wc-orders.js',
+            array(), // No dependencies, uses global wp/wc
+            '1.0',
+            true
+        );
+        // Localize nonce for AJAX
+        wp_localize_script('wir-admin-wc-orders', 'woo_inv_to_rs_ajax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('woo_inv_to_rs_nonce')
+        ));
+        error_log('woo_inv_to_rs: Admin script enqueued (wc-orders)');
+    }
 }
 add_action('admin_enqueue_scripts', 'woo_inv_to_rs_enqueue_admin_scripts');
 
