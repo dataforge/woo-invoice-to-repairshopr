@@ -17,6 +17,13 @@ This plugin is ideal for businesses that use WooCommerce for online sales and Re
 - **Secure API key storage:** Your RepairShopr API key is encrypted in the WordPress database (see below).
 
 ---
+## API Key Migration and Backward Compatibility
+
+**What if I already had an API key saved before this plugin added encryption?**
+
+If you previously saved your RepairShopr API key before the encryption feature was introduced, the plugin will continue to work without interruption. The plugin will detect and use your existing (plaintext) API key as usual. However, your key will not be automatically re-encrypted until you update it via the plugin's settings page. For best security, it is recommended to re-save your API key in the settings after updating the plugin, so it will be stored encrypted.
+
+---
 ## API Key Security and Encryption
 
 This plugin encrypts your RepairShopr API key before storing it in the WordPress database to help protect it from casual snooping or direct database access.

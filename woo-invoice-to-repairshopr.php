@@ -443,7 +443,7 @@ function woo_invoice_to_repairshopr_settings_page() {
     $api_key = woo_inv_to_rs_get_api_key();
     $masked_key = '';
     if (!empty($api_key) && strlen($api_key) > 4) {
-        $masked_key = str_repeat('*', strlen($api_key) - 4) . substr($api_key, -4);
+        $masked_key = str_repeat('*', max(0, strlen($api_key) - 4)) . substr($api_key, -4);
     } elseif (!empty($api_key)) {
         $masked_key = str_repeat('*', strlen($api_key));
     }
@@ -457,7 +457,7 @@ function woo_invoice_to_repairshopr_settings_page() {
             // Refresh $api_key and $masked_key after update
             $api_key = woo_inv_to_rs_get_api_key();
             if (!empty($api_key) && strlen($api_key) > 4) {
-                $masked_key = str_repeat('*', strlen($api_key) - 4) . substr($api_key, -4);
+                $masked_key = str_repeat('*', max(0, strlen($api_key) - 4)) . substr($api_key, -4);
             } elseif (!empty($api_key)) {
                 $masked_key = str_repeat('*', strlen($api_key));
             }
