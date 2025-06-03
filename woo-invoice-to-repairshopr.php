@@ -3,7 +3,7 @@
 Plugin Name: Woo Invoice to RepairShopr
 Plugin URI: https://github.com/dataforge/woo-invoice-to-repairshopr
 Description: Sends invoice details to RepairShopr when an invoice is paid in WooCommerce.
-Version: 1.10
+Version: 1.11
 Author: Dataforge
 GitHub Plugin URI: https://github.com/dataforge/woo-invoice-to-repairshopr
 
@@ -13,18 +13,51 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-function woo_inv_to_rs_get_api_key() {
-    $encrypted_key = get_option('woo_inv_to_rs_api_key', '');
-    if (!$encrypted_key) {
-        return '';
+/**
+ * Securely store an API key in the WordPress options table.
+ * Uses AES-256-CBC encryption with AUTH_KEY or a custom secret.
+ *
+ * @param string $option_name The option key to store the encrypted value under.
+ * @param string $api_key The plaintext API key to store.
+ */
+function save_encrypted_api_key($option_name, $api_key) {
+    $secret = defined('REPAIRSHOPR_SYNC_SECRET') ? REPAIRSHOPR_SYNC_SECRET : (defined('AUTH_KEY') ? AUTH_KEY : '');
+    if (!empty($secret)) {
+        $iv = substr(hash('sha256', $secret), 0, 16);
+        $encrypted = openssl_encrypt($api_key, 'AES-256-CBC', $secret, 0, $iv);
+        update_option($option_name, $encrypted);
+    } else {
+        // Fallback: store plaintext (not recommended)
+        update_option($option_name, $api_key);
     }
-    $decrypted_key = openssl_decrypt($encrypted_key, 'aes-256-cbc', AUTH_KEY, 0, substr(AUTH_SALT, 0, 16));
-    return $decrypted_key;
+}
+
+/**
+ * Retrieve and decrypt an API key from the WordPress options table.
+ * Uses AES-256-CBC decryption with AUTH_KEY or a custom secret.
+ *
+ * @param string $option_name The option key where the encrypted value is stored.
+ * @return string|false The decrypted API key, or false if not found or decryption fails.
+ */
+function get_encrypted_api_key($option_name) {
+    $secret = defined('REPAIRSHOPR_SYNC_SECRET') ? REPAIRSHOPR_SYNC_SECRET : (defined('AUTH_KEY') ? AUTH_KEY : '');
+    $encrypted = get_option($option_name);
+    if (!empty($secret) && !empty($encrypted)) {
+        $iv = substr(hash('sha256', $secret), 0, 16);
+        $decrypted = openssl_decrypt($encrypted, 'AES-256-CBC', $secret, 0, $iv);
+        return $decrypted !== false ? $decrypted : false;
+    }
+    return $encrypted; // fallback: plaintext (not recommended)
+}
+
+// Wrapper for plugin usage
+function woo_inv_to_rs_get_api_key() {
+    $api_key = get_encrypted_api_key('woo_inv_to_rs_api_key');
+    return $api_key ? $api_key : '';
 }
 
 function woo_inv_to_rs_set_api_key($api_key) {
-    $encrypted_key = openssl_encrypt($api_key, 'aes-256-cbc', AUTH_KEY, 0, substr(AUTH_SALT, 0, 16));
-    update_option('woo_inv_to_rs_api_key', $encrypted_key);
+    save_encrypted_api_key('woo_inv_to_rs_api_key', $api_key);
 }
 
 // Hook into WooCommerce order payment completed
@@ -407,14 +440,31 @@ function woo_invoice_to_repairshopr_settings_page() {
         wp_die(__('You do not have sufficient permissions to access this page.'));
     }
 
-    if (isset($_POST['woo_inv_to_rs_api_key']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
-        $api_key = sanitize_text_field($_POST['woo_inv_to_rs_api_key']);
-        woo_inv_to_rs_set_api_key($api_key);
-        echo '<div class="updated"><p>API Key updated.</p></div>';
-    }
     $api_key = woo_inv_to_rs_get_api_key();
-    $masked_key = substr($api_key, 0, 4) . str_repeat('*', strlen($api_key) - 8) . substr($api_key, -4);
+    $masked_key = '';
+    if (!empty($api_key) && strlen($api_key) > 4) {
+        $masked_key = str_repeat('*', strlen($api_key) - 4) . substr($api_key, -4);
+    } elseif (!empty($api_key)) {
+        $masked_key = str_repeat('*', strlen($api_key));
+    }
 
+    if (isset($_POST['woo_inv_to_rs_api_key']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
+        $submitted_key = sanitize_text_field($_POST['woo_inv_to_rs_api_key']);
+        // Only update if the submitted key is not the masked value (i.e., user entered a new key)
+        if ($submitted_key !== $masked_key && $submitted_key !== '') {
+            woo_inv_to_rs_set_api_key($submitted_key);
+            echo '<div class="updated"><p>API Key updated.</p></div>';
+            // Refresh $api_key and $masked_key after update
+            $api_key = woo_inv_to_rs_get_api_key();
+            if (!empty($api_key) && strlen($api_key) > 4) {
+                $masked_key = str_repeat('*', strlen($api_key) - 4) . substr($api_key, -4);
+            } elseif (!empty($api_key)) {
+                $masked_key = str_repeat('*', strlen($api_key));
+            }
+        } else {
+            echo '<div class="updated"><p>API Key unchanged.</p></div>';
+        }
+    }
     ?>
     <div class="wrap">
         <h2>RepairShopr API Settings</h2>
@@ -424,7 +474,8 @@ function woo_invoice_to_repairshopr_settings_page() {
                 <tr>
                     <th><label for="woo_inv_to_rs_api_key">API Key</label></th>
                     <td>
-                        <input type="text" id="woo_inv_to_rs_api_key" name="woo_inv_to_rs_api_key" value="<?php echo esc_attr($masked_key); ?>" class="regular-text">
+                        <input type="text" id="woo_inv_to_rs_api_key" name="woo_inv_to_rs_api_key" value="<?php echo esc_attr($masked_key); ?>" class="regular-text" autocomplete="off">
+                        <p class="description">For security, only the last 4 characters are shown. Enter a new key to update.</p>
                     </td>
                 </tr>
             </table>
