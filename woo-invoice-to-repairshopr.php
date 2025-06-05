@@ -298,11 +298,13 @@ if ($epf_name !== '' && $epf_product_id !== '') {
                 'item' => $epf_name,
                 'name' => $epf_name,
                 'product_id' => $epf_product_id,
-                'quantity' => 1,
+                'quantity' => "1",
                 'cost' => 0,
-                'price' => (float)$fee_total_formatted,
+                'price' => $fee_total_formatted,
                 'discount_percent' => 0,
-                'taxable' => $taxable_flag
+                'taxable' => $taxable_flag,
+                'upc_code' => '',
+                'tax_note' => ''
             );
             break;
         }
