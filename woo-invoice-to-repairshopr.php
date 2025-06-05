@@ -287,9 +287,11 @@ $epf_name = trim(get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee'))
 $epf_product_id = trim(get_option('woo_inv_to_rs_epf_product_id', '9263351'));
 if ($epf_name !== '' && $epf_product_id !== '') {
     foreach ($order->get_fees() as $fee) {
+        error_log('woo_inv_to_rs: Found fee: ' . $fee->get_name() . ' value: ' . $fee->get_total());
         if ($fee->get_name() == $epf_name) {
             $fee_total = $fee->get_total();
             $fee_total_formatted = number_format($fee_total, 2, '.', '');
+            error_log('woo_inv_to_rs: Matched Electronic Payment Fee "' . $epf_name . '" with value: ' . $fee_total_formatted);
             // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
             $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($order->get_total_tax() > 0);
             $line_items[] = array(
