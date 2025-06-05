@@ -370,17 +370,31 @@ $body = array(
         }
 
         foreach ($line_items as $li) {
-            $li_body = array(
-                'id' => 0,
-                'line_discount_percent' => 0,
-                'discount_dollars' => '0',
-                'item' => isset($li['item']) ? $li['item'] : '',
-                'name' => isset($li['item']) ? $li['item'] : '',
-                'price' => isset($li['price']) ? $li['price'] : 0,
-                'cost' => 0,
-                'quantity' => isset($li['quantity']) ? $li['quantity'] : 1,
-                'taxable' => isset($li['taxable']) ? $li['taxable'] : false
-            );
+            // If product_id is set, do not send 'item' or 'name' (RepairShopr will use the product)
+            if (!empty($li['product_id'])) {
+                $li_body = array(
+                    'id' => 0,
+                    'line_discount_percent' => 0,
+                    'discount_dollars' => '0',
+                    'product_id' => $li['product_id'],
+                    'price' => isset($li['price']) ? floatval($li['price']) : 0.0,
+                    'cost' => 0,
+                    'quantity' => isset($li['quantity']) ? floatval($li['quantity']) : 1.0,
+                    'taxable' => isset($li['taxable']) ? $li['taxable'] : false
+                );
+            } else {
+                $li_body = array(
+                    'id' => 0,
+                    'line_discount_percent' => 0,
+                    'discount_dollars' => '0',
+                    'item' => isset($li['item']) ? $li['item'] : '',
+                    'name' => isset($li['item']) ? $li['item'] : '',
+                    'price' => isset($li['price']) ? floatval($li['price']) : 0.0,
+                    'cost' => 0,
+                    'quantity' => isset($li['quantity']) ? floatval($li['quantity']) : 1.0,
+                    'taxable' => isset($li['taxable']) ? $li['taxable'] : false
+                );
+            }
             error_log('RepairShopr API Request (Add Line Item): ' . json_encode($li_body));
             $li_response = wp_remote_post($line_item_url, array(
                 'headers' => array(
