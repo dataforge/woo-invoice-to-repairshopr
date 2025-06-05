@@ -272,9 +272,12 @@ foreach ($order->get_items() as $item) {
 
     $line_items[] = array(
         'item' => $product ? $product->get_name() : $item->get_name(),
+        'name' => $product ? $product->get_name() : $item->get_name(),
         'product_id' => $product_id,
         'quantity' => (int)$quantity,
+        'cost' => 0,
         'price' => (float)$price,
+        'discount_percent' => 0,
         'taxable' => $taxable_flag
     );
 }
@@ -291,9 +294,12 @@ if ($epf_name !== '' && $epf_product_id !== '') {
             $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($order->get_total_tax() > 0);
             $line_items[] = array(
                 'item' => $epf_name,
+                'name' => $epf_name,
                 'product_id' => $epf_product_id,
                 'quantity' => 1,
+                'cost' => 0,
                 'price' => (float)$fee_total_formatted,
+                'discount_percent' => 0,
                 'taxable' => $taxable_flag
             );
             break;
