@@ -378,6 +378,7 @@ $body = array(
                 'name' => isset($li['item']) ? $li['item'] : '',
                 'price' => isset($li['price']) ? $li['price'] : 0,
                 'cost' => 0,
+                'quantity' => isset($li['quantity']) ? $li['quantity'] : 1,
                 'taxable' => isset($li['taxable']) ? $li['taxable'] : false
             );
             error_log('RepairShopr API Request (Add Line Item): ' . json_encode($li_body));
