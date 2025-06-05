@@ -443,15 +443,18 @@ function woo_inv_to_rs_hpos_order_repairshopr_column_content($column, $order) {
  */
 function woo_inv_to_rs_enqueue_admin_scripts($hook) {
     error_log('woo_inv_to_rs: admin_enqueue_scripts called. $hook=' . $hook . ', $_GET[page]=' . (isset($_GET['page']) ? $_GET['page'] : 'NOT SET'));
-    // Legacy orders page (edit.php?post_type=shop_order)
-    if ('edit.php' === $hook && isset($_GET['post_type']) && $_GET['post_type'] === 'shop_order') {
-        error_log('woo_inv_to_rs: Attempting to enqueue admin script (legacy orders page)');
+    // Legacy orders page (edit.php?post_type=shop_order) or legacy table on wc-orders page
+    if (
+        ('edit.php' === $hook && isset($_GET['post_type']) && $_GET['post_type'] === 'shop_order') ||
+        ($hook === 'woocommerce_page_wc-orders')
+    ) {
+        error_log('woo_inv_to_rs: Attempting to enqueue admin script (legacy orders page or legacy table on wc-orders)');
         wp_enqueue_script('wir-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', array('jquery'), '1.0', true);
         wp_localize_script('wir-admin-script', 'woo_inv_to_rs_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('woo_inv_to_rs_nonce')
         ));
-        error_log('woo_inv_to_rs: Admin script enqueued (legacy)');
+        error_log('woo_inv_to_rs: Admin script enqueued (legacy or wc-orders legacy table)');
     }
 
     // New WooCommerce Admin (wc-orders) React-based page
