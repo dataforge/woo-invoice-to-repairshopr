@@ -457,6 +457,7 @@ function woo_inv_to_rs_enqueue_admin_scripts($hook) {
     // New WooCommerce Admin (wc-orders) React-based page
     if (
         $hook === 'toplevel_page_wc-orders' ||
+        $hook === 'woocommerce_page_wc-orders' ||
         (isset($_GET['page']) && $_GET['page'] === 'wc-orders')
     ) {
         error_log('woo_inv_to_rs: Attempting to enqueue admin script (wc-orders React page)');
