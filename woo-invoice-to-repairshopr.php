@@ -106,6 +106,8 @@ function woo_inv_to_rs_send_invoice_to_repairshopr($order_id) {
 function woo_inv_to_rs_get_repairshopr_customer($email) {
     $api_base = get_option('woo_inv_to_rs_api_url', '');
     if ($api_base) {
+        // Remove any trailing /customers or /customers/ from the base
+        // Always append /customers to the API base (which should NOT end with /customers)
         $base_url = rtrim($api_base, '/') . '/customers';
     } else {
         $base_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
@@ -142,6 +144,8 @@ function woo_inv_to_rs_get_repairshopr_customer($email) {
 function woo_inv_to_rs_create_repairshopr_customer($order) {
     $api_base = get_option('woo_inv_to_rs_api_url', '');
     if ($api_base) {
+        // Remove any trailing /customers or /customers/ from the base
+        // Always append /customers to the API base (which should NOT end with /customers)
         $api_url = rtrim($api_base, '/') . '/customers';
     } else {
         $api_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
@@ -854,7 +858,7 @@ function woo_invoice_to_repairshopr_settings_page() {
                         <th><label for="woo_inv_to_rs_api_url">API URL</label></th>
                         <td>
                             <input type="text" id="woo_inv_to_rs_api_url" name="woo_inv_to_rs_api_url" value="<?php echo esc_attr($api_url); ?>" class="regular-text" autocomplete="off">
-                            <p class="description">Example: <code>https://your-subdomain.repairshopr.com/api/v1</code></p>
+                            <p class="description">Example: <code>https://your-subdomain.repairshopr.com/api/v1</code> (do NOT include <code>/customers</code> or <code>/invoices</code> at the end)</p>
                         </td>
                     </tr>
                 </table>
