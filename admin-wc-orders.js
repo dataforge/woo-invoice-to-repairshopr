@@ -53,44 +53,45 @@
                         className: 'components-button is-secondary woo_inv_to_rs-send-to-repairshopr',
                         'data-order-id': order.id,
                         onClick: (event) => {
+                            alert('Send Invoice clicked');
                             // Use AJAX to trigger the PHP handler for invoice
-if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
-    const button = event.target;
-    button.disabled = true;
-    button.textContent = 'Sending...';
-    fetch(window.woo_inv_to_rs_ajax.ajax_url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-            action: 'woo_inv_to_rs_send_to_repairshopr',
-            order_id: order.id,
-            nonce: window.woo_inv_to_rs_ajax ? window.woo_inv_to_rs_ajax.nonce : '',
-        }),
-    })
-        .then((res) => res.json())
-        .then((response) => {
-            if (response.success) {
-                button.textContent = 'Sent!';
-                button.classList.add('is-primary');
-            } else {
-                button.textContent = 'Error';
-                button.classList.add('is-secondary');
-                alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
-            }
-        })
-        .catch((err) => {
-            button.textContent = 'Error';
-            button.classList.add('is-secondary');
-            alert('An error occurred while sending the invoice.');
-        })
-        .finally(() => {
-            button.disabled = false;
-        });
-}
-                        },
+                            if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
+                                const button = event.target;
+                                button.disabled = true;
+                                button.textContent = 'Sending...';
+                                fetch(window.woo_inv_to_rs_ajax.ajax_url, {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: {
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                    },
+                                    body: new URLSearchParams({
+                                        action: 'woo_inv_to_rs_send_to_repairshopr',
+                                        order_id: order.id,
+                                        nonce: window.woo_inv_to_rs_ajax ? window.woo_inv_to_rs_ajax.nonce : '',
+                                    }),
+                                })
+                                    .then((res) => res.json())
+                                    .then((response) => {
+                                        if (response.success) {
+                                            button.textContent = 'Sent!';
+                                            button.classList.add('is-primary');
+                                        } else {
+                                            button.textContent = 'Error';
+                                            button.classList.add('is-secondary');
+                                            alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                        }
+                                    })
+                                    .catch((err) => {
+                                        button.textContent = 'Error';
+                                        button.classList.add('is-secondary');
+                                        alert('An error occurred while sending the invoice.');
+                                    })
+                                    .finally(() => {
+                                        button.disabled = false;
+                                    });
+                            }
+                        }
                     },
                     'Send Invoice'
                 ),
@@ -102,43 +103,43 @@ if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
                         'data-order-id': order.id,
                         onClick: (event) => {
                             // Use AJAX to trigger the PHP handler for payment
-if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
-    const button = event.target;
-    button.disabled = true;
-    button.textContent = 'Sending...';
-    fetch(window.woo_inv_to_rs_ajax.ajax_url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-            action: 'woo_inv_to_rs_send_payment_to_repairshopr',
-            order_id: order.id,
-            nonce: window.woo_inv_to_rs_ajax ? window.woo_inv_to_rs_ajax.nonce : '',
-        }),
-    })
-        .then((res) => res.json())
-        .then((response) => {
-            if (response.success) {
-                button.textContent = 'Sent!';
-                button.classList.add('is-primary');
-            } else {
-                button.textContent = 'Error';
-                button.classList.add('is-secondary');
-                alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
-            }
-        })
-        .catch((err) => {
-            button.textContent = 'Error';
-            button.classList.add('is-secondary');
-            alert('An error occurred while sending the payment.');
-        })
-        .finally(() => {
-            button.disabled = false;
-        });
-}
-                        },
+                            if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
+                                const button = event.target;
+                                button.disabled = true;
+                                button.textContent = 'Sending...';
+                                fetch(window.woo_inv_to_rs_ajax.ajax_url, {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: {
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                    },
+                                    body: new URLSearchParams({
+                                        action: 'woo_inv_to_rs_send_payment_to_repairshopr',
+                                        order_id: order.id,
+                                        nonce: window.woo_inv_to_rs_ajax ? window.woo_inv_to_rs_ajax.nonce : '',
+                                    }),
+                                })
+                                    .then((res) => res.json())
+                                    .then((response) => {
+                                        if (response.success) {
+                                            button.textContent = 'Sent!';
+                                            button.classList.add('is-primary');
+                                        } else {
+                                            button.textContent = 'Error';
+                                            button.classList.add('is-secondary');
+                                            alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                        }
+                                    })
+                                    .catch((err) => {
+                                        button.textContent = 'Error';
+                                        button.classList.add('is-secondary');
+                                        alert('An error occurred while sending the payment.');
+                                    })
+                                    .finally(() => {
+                                        button.disabled = false;
+                                    });
+                            }
+                        }
                     },
                     'Send Payment'
                 )
