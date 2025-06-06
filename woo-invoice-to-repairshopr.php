@@ -723,6 +723,30 @@ $payment_url = $api_base . '/payments';
 
         if (!empty($data['payment']['success'])) {
             error_log('woo_inv_to_rs: Payment successfully applied in RepairShopr for order ' . $order_id);
+
+            // Additional debug: fetch payment details and compare invoice_ids
+            $payment_id = isset($data['payment']['id']) ? $data['payment']['id'] : null;
+            if ($payment_id) {
+                $payment_url = $api_base . '/payments/' . $payment_id;
+                $payment_response = wp_remote_get($payment_url, array(
+                    'headers' => array(
+                        'Authorization' => 'Bearer ' . $api_key,
+                        'Accept' => 'application/json'
+                    )
+                ));
+                $payment_body = wp_remote_retrieve_body($payment_response);
+                $payment_data = json_decode($payment_body, true);
+                $applied_invoice_ids = isset($payment_data['payment']['invoice_ids']) ? $payment_data['payment']['invoice_ids'] : [];
+                $logline = date('c') . ' woo_inv_to_rs: Payment ID ' . $payment_id . ' applied to invoice_ids: ' . json_encode($applied_invoice_ids) . ' (expected: ' . $invoice_id . ')' . PHP_EOL;
+                error_log('woo_inv_to_rs: Payment ID ' . $payment_id . ' applied to invoice_ids: ' . json_encode($applied_invoice_ids) . ' (expected: ' . $invoice_id . ')');
+                if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+                    $logfile = WP_CONTENT_DIR . '/debug.log';
+                    file_put_contents($logfile, $logline, FILE_APPEND);
+                }
+            } else {
+                error_log('woo_inv_to_rs: Could not extract payment ID from RepairShopr response.');
+            }
+
             wp_send_json_success(array('message' => 'Payment successfully applied in RepairShopr.'));
         } else {
             error_log('woo_inv_to_rs: Failed to apply payment in RepairShopr for order ' . $order_id . '. Response: ' . $body);
