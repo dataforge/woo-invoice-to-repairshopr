@@ -404,9 +404,48 @@ $body = array(
                 ),
                 'body' => json_encode($li_body)
             ));
-            error_log('RepairShopr API Response (Add Line Item): ' . wp_remote_retrieve_body($li_response));
+            $li_response_body = wp_remote_retrieve_body($li_response);
+            error_log('RepairShopr API Response (Add Line Item): ' . $li_response_body);
             if (is_wp_error($li_response)) {
                 error_log('Failed to add line item to invoice ' . $invoice_id . ': ' . $li_response->get_error_message());
+            } else {
+                // Special handling for Electronic Payment Fee: update price with PUT if needed
+                $epf_name = trim(get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee'));
+                $epf_product_id = trim(get_option('woo_inv_to_rs_epf_product_id', '9263351'));
+                $is_epf = (
+                    isset($li['product_id']) && $li['product_id'] == $epf_product_id &&
+                    isset($li['item']) && $li['item'] == $epf_name
+                );
+                $li_response_data = json_decode($li_response_body, true);
+                if ($is_epf && isset($li_response_data['line_item']['id'])) {
+                    $line_item_id = $li_response_data['line_item']['id'];
+                    $update_line_item = array(
+                        'price' => isset($li['price']) ? floatval($li['price']) : 0.0
+                    );
+                    $update_url = rtrim($line_item_url, '/') . '/' . $line_item_id;
+                    error_log('RepairShopr API Request (Update Fee Line Item): ' . json_encode($update_line_item));
+                    $update_response = wp_remote_request($update_url, array(
+                        'method' => 'PUT',
+                        'headers' => array(
+                            'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                            'Content-Type' => 'application/json',
+                            'Accept' => 'application/json'
+                        ),
+                        'body' => json_encode($update_line_item)
+                    ));
+                    $update_body = wp_remote_retrieve_body($update_response);
+                    error_log('RepairShopr API Response (Update Fee Line Item): ' . $update_body);
+                    if (is_wp_error($update_response)) {
+                        error_log('RepairShopr API Error (Update Fee Line Item): ' . $update_response->get_error_message());
+                    } else {
+                        $update_data = json_decode($update_body, true);
+                        if (isset($update_data['line_item'])) {
+                            error_log('RepairShopr Line Item Updated: ' . json_encode($update_data['line_item']));
+                        } else {
+                            error_log('RepairShopr Line Item Update Failed. Response: ' . $update_body);
+                        }
+                    }
+                }
             }
         }
     }
