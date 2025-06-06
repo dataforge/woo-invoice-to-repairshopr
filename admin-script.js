@@ -1,3 +1,4 @@
+console.log('woo_inv_to_rs: ADMIN-SCRIPT.JS IS EXECUTING (GLOBAL)');
 console.log('woo_inv_to_rs: WooCommerce Invoice to RepairShopr script loaded');
 
 jQuery(document).ready(function($) {
