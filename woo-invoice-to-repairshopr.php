@@ -517,7 +517,7 @@ function woo_inv_to_rs_enqueue_admin_scripts($hook) {
         ($hook === 'woocommerce_page_wc-orders')
     ) {
         error_log('woo_inv_to_rs: Attempting to enqueue admin script (legacy orders page or legacy table on wc-orders)');
-        wp_enqueue_script('wir-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', array('jquery'), '1.0', true);
+        wp_enqueue_script('wir-admin-script', plugin_dir_url(__FILE__) . 'admin-script.js', array('jquery'), time(), true);
         wp_localize_script('wir-admin-script', 'woo_inv_to_rs_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('woo_inv_to_rs_nonce')
@@ -624,6 +624,7 @@ $invoice_url = $api_base . '/invoices?number=' . urlencode($invoice_number);
                 }
             }
         }
+        error_log('woo_inv_to_rs: Attempting to match invoice_number: ' . $invoice_number . ' for order_id: ' . $order_id . '. Found invoice_id: ' . $invoice_id);
         if (!$invoice_id) {
             error_log('woo_inv_to_rs: Could not find RepairShopr invoice for order ' . $order_id . ' (number: ' . $invoice_number . ')');
             wp_send_json_error(array('message' => 'Could not find RepairShopr invoice for this order.'));
