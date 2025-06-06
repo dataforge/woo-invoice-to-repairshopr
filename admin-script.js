@@ -52,7 +52,8 @@ jQuery(document).ready(function($) {
 
     // Handler for Send Payment button (legacy orders page)
     $(document).on('click', '.woo_inv_to_rs-send-payment', function(e) {
-        console.log('woo_inv_to_rs: Send Payment button clicked');
+        console.log('woo_inv_to_rs: CLICK HANDLER TRIGGERED for .woo_inv_to_rs-send-payment');
+        alert('Send Payment JS handler triggered');
         e.preventDefault();
         e.stopPropagation();
 
