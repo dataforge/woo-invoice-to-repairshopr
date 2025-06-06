@@ -1,0 +1,109 @@
+Subject: Issues with Payment API - Payment Date and Invoice Assignment
+
+Hello RepairShopr Support,
+
+We are integrating WooCommerce with RepairShopr using your API (https://api-docs.repairshopr.com/) and are experiencing two issues when creating payments via the API:
+
+1. The payment date in RepairShopr is always set to the current date/time, not the date of the original WooCommerce order/payment.
+2. Payments are not  applied to the intended invoice. On the payments listing screen, the "Invoice" column is blank, and in the payment details, the payment sometimes  to be applied to the wrong invoice, it seems to apply to which ever invoice is the most recently created invoice in the system.
+
+Below are the details of our API usage, example payloads, and the issues observed.
+
+---
+
+## 1. Creating a Payment
+
+**API Call:**
+POST /api/v1/payments
+
+**Example Request Payload:**
+```json
+{
+  "customer_id": 10133893,
+  "invoice_id": 1646080484,
+  "invoice_number": "9991017",
+  "amount_cents": 142,
+  "address_street": "16 Burke Drive",
+  "address_city": "Louisburg",
+  "address_zip": "27549",
+  "payment_method": "Woocommerce",
+  "ref_num": "pi_3RUfoKCH8kK7Iqsu0GxaQ5R8",
+  "register_id": 0,
+  "signature_name": "",
+  "signature_data": "",
+  "signature_date": "2025-05-30T23:10:20-04:00",
+  "credit_card_number": "",
+  "date_month": "",
+  "date_year": "",
+  "cvv": "",
+  "lastname": "Hart",
+  "firstname": "Phil",
+  "apply_payments": {}
+}
+```
+- "invoice_id" is set to the integer RepairShopr invoice ID (from GET /invoices?number=9991017).
+- "invoice_number" is set to the invoice number string.
+- "signature_date" is set to the WooCommerce payment date.
+
+**API Response:**
+```json
+{
+  "payment": {
+    "id": 40896996,
+    "success": true,
+    ...
+  }
+}
+```
+
+---
+
+## 2. Verifying the Payment
+
+**API Call:**
+GET /api/v1/payments/40896996
+
+**Example Response:**
+```json
+{
+  "payment": {
+    "id": 40896996,
+    "created_at": "2025-06-06T13:41:40.158-04:00",
+    "applied_at": "2025-06-06",
+    "invoice_ids": [1646080484],
+    ...
+  }
+}
+```
+
+---
+
+## 3. Issues Observed
+
+- The payment date ("created_at" and "applied_at") is always set to the current date/time when the payment is created via the API, not the date of the original WooCommerce payment (which we provide in "signature_date").
+- On the RepairShopr payments listing screen, the "Invoice" column is blank for the payment.
+- In the payment details, the payment sometimes appears to be applied to the wrong invoice, or the invoice does not show the payment in its payment list, even though the API response shows the correct "invoice_ids".
+
+---
+
+## 4. Questions
+
+1. **How can we set the payment date in RepairShopr to match the original WooCommerce payment date?**
+   - Is there a field in the /payments API (such as "applied_at", "date", or similar) that allows us to set the payment date? If so, what is the correct field name and format?
+   - If not, is there any way to set the payment date via the API?
+
+2. **How can we ensure the payment is reliably applied to the intended invoice?**
+   - Is it sufficient to set "invoice_id" and/or "invoice_number" in the POST /payments payload?
+   - Are there any additional fields or steps required to ensure the payment is linked to the correct invoice and appears in the invoice's payment list and the payments listing screen?
+
+3. **Is there any additional documentation or best practices for applying payments to invoices via the API?**
+
+---
+
+Thank you for your assistance. Please let us know the correct API usage to achieve the above, or if there are any known issues or workarounds.
+
+Thanks
+
+Phil Hart
+phil.hart@dataforge.us
+sales@dataforge.us

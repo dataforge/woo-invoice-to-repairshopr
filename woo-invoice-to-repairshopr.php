@@ -878,9 +878,15 @@ function woo_invoice_to_repairshopr_settings_page() {
                     echo '<div class="updated"><p>API Key unchanged.</p></div>';
                 }
             }
-            // Electronic Payment Fee settings
-            update_option('woo_inv_to_rs_epf_name', sanitize_text_field($_POST['woo_inv_to_rs_epf_name']));
-            update_option('woo_inv_to_rs_epf_product_id', sanitize_text_field($_POST['woo_inv_to_rs_epf_product_id']));
+                        // Electronic Payment Fee settings
+            $epf_name_submitted = isset($_POST['woo_inv_to_rs_epf_name']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_epf_name'])) : '';
+            $epf_product_id_submitted = isset($_POST['woo_inv_to_rs_epf_product_id']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_epf_product_id'])) : '';
+            if (($epf_name_submitted !== '' && $epf_product_id_submitted === '') || ($epf_name_submitted === '' && $epf_product_id_submitted !== '')) {
+                echo '<div class="error"><p><strong>Both Electronic Payment Fee Name and Product ID must be filled together, or both left blank. Fee settings not saved.</strong></p></div>';
+            } else {
+                update_option('woo_inv_to_rs_epf_name', $epf_name_submitted);
+                update_option('woo_inv_to_rs_epf_product_id', $epf_product_id_submitted);
+            }
             // Invoice Prefix (numbers only)
             if (isset($_POST['woo_inv_to_rs_invoice_prefix'])) {
                 $prefix = trim($_POST['woo_inv_to_rs_invoice_prefix']);
@@ -990,17 +996,18 @@ function woo_invoice_to_repairshopr_settings_page() {
                             <input type="number" id="woo_inv_to_rs_tax_rate_id" name="woo_inv_to_rs_tax_rate_id" value="<?php echo esc_attr($tax_rate_id); ?>" class="regular-text" autocomplete="off">
                         </td>
                     </tr>
-                    <tr>
+<tr>
                         <th><label for="woo_inv_to_rs_epf_name">Electronic Payment Fee Name</label></th>
                         <td>
-                            <input type="text" id="woo_inv_to_rs_epf_name" name="woo_inv_to_rs_epf_name" value="<?php echo esc_attr($epf_name); ?>" class="regular-text" autocomplete="off">
-                            <p class="description">Enter the exact name of the fee as it appears in your WooCommerce orders (e.g., "Credit Card Surcharge", "Online Payment Fee"). The plugin will look for a fee line with this name in each order and export it to RepairShopr.</p>
+<input type="text" id="woo_inv_to_rs_epf_name" name="woo_inv_to_rs_epf_name" value="<?php echo esc_attr($epf_name); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Optional. Enter the exact name of the fee as it appears in your WooCommerce orders (e.g., "Credit Card Surcharge", "Online Payment Fee"). <strong>If you enter a value here, you must also enter a Product ID below. Both fields must be filled for the fee to be exported. If both are left blank, no fee will be exported to RepairShopr.</strong></p>
                         </td>
                     </tr>
                     <tr>
                         <th><label for="woo_inv_to_rs_epf_product_id">Electronic Payment Fee Product ID</label></th>
                         <td>
-                            <input type="text" id="woo_inv_to_rs_epf_product_id" name="woo_inv_to_rs_epf_product_id" value="<?php echo esc_attr($epf_product_id); ?>" class="regular-text" autocomplete="off">
+<input type="text" id="woo_inv_to_rs_epf_product_id" name="woo_inv_to_rs_epf_product_id" value="<?php echo esc_attr($epf_product_id); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Optional. Enter the RepairShopr Product ID to use for the electronic payment fee. <strong>If you enter a value here, you must also enter a Fee Name above. Both fields must be filled for the fee to be exported. If both are left blank, no fee will be exported to RepairShopr.</strong></p>
                         </td>
                     </tr>
                     <tr>
