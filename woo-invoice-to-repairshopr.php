@@ -691,6 +691,16 @@ $pm_url = $api_base . '/payment_methods';
             'apply_payments' => new stdClass()
         );
 
+        // Log the payment payload for debugging
+        error_log('woo_inv_to_rs: Payment payload to RepairShopr: ' . json_encode($payment_body));
+        if (function_exists('wp_debug_backtrace_summary')) {
+            if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+                $logfile = WP_CONTENT_DIR . '/debug.log';
+                $logline = date('c') . ' woo_inv_to_rs: Payment payload to RepairShopr: ' . json_encode($payment_body) . PHP_EOL;
+                file_put_contents($logfile, $logline, FILE_APPEND);
+            }
+        }
+
         // Send payment to RepairShopr
 $payment_url = $api_base . '/payments';
         $response = wp_remote_post($payment_url, array(
