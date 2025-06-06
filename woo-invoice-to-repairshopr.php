@@ -316,7 +316,7 @@ $first_line_item = array_shift($line_items);
 $body = array(
     'balance_due' => '0.00',
     'customer_id' => $customer_id,
-    'number' => 'WOO-' . $order->get_order_number(),
+    'number' => get_option('woo_inv_to_rs_invoice_prefix', '') . $order->get_order_number(),
     'date' => $order->get_date_created()->format('Y-m-d\TH:i:s.000P'),
     'customer_business_then_name' => $order->get_billing_company() ?: $order->get_formatted_billing_full_name(),
     'due_date' => $order->get_date_created()->format('Y-m-d'),
@@ -601,7 +601,8 @@ function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
         }
 
         // Find invoice in RepairShopr by order number
-        $invoice_number = 'WOO-' . $order->get_order_number();
+        $prefix = get_option('woo_inv_to_rs_invoice_prefix', '');
+        $invoice_number = $prefix . $order->get_order_number();
 // Get and sanitize API base (no hardcoded default)
 $api_base = get_option('woo_inv_to_rs_api_url', '');
 // Sanitize: remove any trailing endpoint (e.g., /customers, /invoices, /payment_methods)
@@ -846,6 +847,15 @@ function woo_invoice_to_repairshopr_settings_page() {
             // Electronic Payment Fee settings
             update_option('woo_inv_to_rs_epf_name', sanitize_text_field($_POST['woo_inv_to_rs_epf_name']));
             update_option('woo_inv_to_rs_epf_product_id', sanitize_text_field($_POST['woo_inv_to_rs_epf_product_id']));
+            // Invoice Prefix (numbers only)
+            if (isset($_POST['woo_inv_to_rs_invoice_prefix'])) {
+                $prefix = trim($_POST['woo_inv_to_rs_invoice_prefix']);
+                if ($prefix === '' || ctype_digit($prefix)) {
+                    update_option('woo_inv_to_rs_invoice_prefix', $prefix);
+                } else {
+                    echo '<div class="error"><p>Invoice Number Prefix must be numbers only.</p></div>';
+                }
+            }
             // Other settings
             update_option('woo_inv_to_rs_api_url', esc_url_raw($_POST['woo_inv_to_rs_api_url']));
             update_option('woo_inv_to_rs_customer_url', esc_url_raw($_POST['woo_inv_to_rs_customer_url']));
@@ -927,6 +937,13 @@ function woo_invoice_to_repairshopr_settings_page() {
                         <td>
                             <input type="text" id="woo_inv_to_rs_api_url" name="woo_inv_to_rs_api_url" value="<?php echo esc_attr($api_url); ?>" class="regular-text" autocomplete="off">
                             <p class="description">Example: <code>https://your-subdomain.repairshopr.com/api/v1</code> (do NOT include <code>/customers</code> or <code>/invoices</code> at the end)</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="woo_inv_to_rs_invoice_prefix">Invoice Number Prefix (Must be numbers only)</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_invoice_prefix" name="woo_inv_to_rs_invoice_prefix" value="<?php echo esc_attr(get_option('woo_inv_to_rs_invoice_prefix', '')); ?>" class="regular-text" autocomplete="off" pattern="\d*">
+                            <p class="description">This prefix will be prepended to all invoice numbers sent to RepairShopr. Leave blank for no prefix. Numbers only.</p>
                         </td>
                     </tr>
                 </table>
