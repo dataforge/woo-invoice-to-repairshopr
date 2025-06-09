@@ -538,7 +538,7 @@ function woo_inv_to_rs_enqueue_admin_scripts($hook) {
             'wir-admin-wc-orders',
             plugin_dir_url(__FILE__) . 'admin-wc-orders.js',
             array(), // No dependencies, uses global wp/wc
-            '1.0',
+            time(), // Use time() for cache busting
             true
         );
         // Localize nonce for AJAX

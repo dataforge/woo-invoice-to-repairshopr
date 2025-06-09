@@ -170,37 +170,45 @@
                                         })
                                             .then((res) => res.json())
                                             .then((response) => {
+                                                console.log('RepairShopr Verify API Response:', response); // Add console log for debugging
                                                 if (response.success) {
                                                     if (response.data && response.data.match) {
                                                         button.textContent = '$ Match';
                                                         button.style.backgroundColor = 'green';
                                                         button.style.color = 'white'; // Ensure text is readable
                                                         button.classList.remove('is-secondary');
-                                                        button.classList.add('is-primary'); // Use is-primary for consistency if it provides a good base style
                                                     } else if (response.data && response.data.match === false) {
                                                         button.textContent = '$ Mismatch';
                                                         button.style.backgroundColor = 'red';
                                                         button.style.color = 'white'; // Ensure text is readable
                                                         button.classList.remove('is-secondary');
-                                                        button.classList.add('is-primary'); // Use is-primary for consistency if it provides a good base style
                                                     } else {
-                                                        button.textContent = 'Error';
+                                                        // Fallback for unexpected success response structure
+                                                        button.textContent = 'Error (Unexpected)';
+                                                        button.style.backgroundColor = ''; // Reset background
+                                                        button.style.color = ''; // Reset color
                                                         button.classList.add('is-secondary');
-                                                        alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                                        alert('Error: Unexpected response structure. ' + (response.data && response.data.message ? response.data.message : ''));
                                                     }
                                                 } else {
                                                     button.textContent = 'Error';
+                                                    button.style.backgroundColor = ''; // Reset background
+                                                    button.style.color = ''; // Reset color
                                                     button.classList.add('is-secondary');
                                                     alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
                                                 }
                                             })
                                             .catch((err) => {
                                                 button.textContent = 'Error';
+                                                button.style.backgroundColor = ''; // Reset background
+                                                button.style.color = ''; // Reset color
                                                 button.classList.add('is-secondary');
-                                                alert('An error occurred while verifying the invoice.');
+                                                alert('An error occurred while verifying the invoice: ' + err.message);
                                             })
                                             .finally(() => {
                                                 button.disabled = false;
+                                                // Reset button to original state after a short delay or on next interaction
+                                                // For now, keep the match/mismatch state. If user wants it to revert, we'd add a timeout.
                                             });
                                     }
                                 }
