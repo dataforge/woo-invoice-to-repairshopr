@@ -736,6 +736,9 @@ $payment_url = $api_base . '/payments';
 
         $body = wp_remote_retrieve_body($response);
 
+        // Log the payment API response to error_log for debug_log visibility
+        error_log('woo_inv_to_rs: Payment API Response: ' . $body);
+
         // Debug: log before writing payment API response
         $logfile = WP_CONTENT_DIR . '/debug.log';
         $prelog = date('c') . ' woo_inv_to_rs: About to log Payment API Response' . PHP_EOL;
