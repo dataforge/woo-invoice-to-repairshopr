@@ -743,11 +743,9 @@ $payment_url = $api_base . '/payments';
         $body = wp_remote_retrieve_body($response);
 
         // Log the payment API response
-        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
-            $logfile = WP_CONTENT_DIR . '/debug.log';
-            $logline = date('c') . ' woo_inv_to_rs: Payment API Response: ' . $body . PHP_EOL;
-            file_put_contents($logfile, $logline, FILE_APPEND);
-        }
+        $logfile = WP_CONTENT_DIR . '/debug.log';
+        $logline = date('c') . ' woo_inv_to_rs: Payment API Response: ' . $body . PHP_EOL;
+        file_put_contents($logfile, $logline, FILE_APPEND);
 
         $data = json_decode($body, true);
 
