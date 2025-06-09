@@ -613,21 +613,39 @@ $api_base = preg_replace('#/(customers|invoices|payment_methods)$#', '', rtrim($
 $invoice_url = $api_base . '/invoices/' . urlencode($invoice_number);
         $api_key = woo_inv_to_rs_get_api_key();
         $invoice_id = 0;
-        if ($api_key) {
-            $response = wp_remote_get($invoice_url, array(
-                'headers' => array(
-'Authorization' => 'Bearer ' . $api_key,
-                    'Accept' => 'application/json'
-                )
-            ));
-            if (!is_wp_error($response)) {
-                $body = wp_remote_retrieve_body($response);
-                $data = json_decode($body, true);
-                if (!empty($data['invoices'][0]['id'])) {
-                    $invoice_id = $data['invoices'][0]['id'];
-                }
-            }
+if ($api_key) {
+    // Log the invoice lookup API call
+    if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+        $logfile = WP_CONTENT_DIR . '/debug.log';
+        $logline = date('c') . ' woo_inv_to_rs: Invoice lookup API Request URL: ' . $invoice_url . PHP_EOL;
+        file_put_contents($logfile, $logline, FILE_APPEND);
+    }
+    error_log('woo_inv_to_rs: Invoice lookup API Request URL: ' . $invoice_url);
+
+    $response = wp_remote_get($invoice_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Accept' => 'application/json'
+        )
+    ));
+
+    // Log the invoice lookup API response
+    $response_body = wp_remote_retrieve_body($response);
+    if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+        $logfile = WP_CONTENT_DIR . '/debug.log';
+        $logline = date('c') . ' woo_inv_to_rs: Invoice lookup API Response: ' . $response_body . PHP_EOL;
+        file_put_contents($logfile, $logline, FILE_APPEND);
+    }
+    error_log('woo_inv_to_rs: Invoice lookup API Response: ' . $response_body);
+
+    if (!is_wp_error($response)) {
+        $body = $response_body;
+        $data = json_decode($body, true);
+        if (!empty($data['invoices'][0]['id'])) {
+            $invoice_id = $data['invoices'][0]['id'];
         }
+    }
+}
         error_log('woo_inv_to_rs: Attempting to match invoice_number: ' . $invoice_number . ' for order_id: ' . $order_id . '. Found invoice_id: ' . $invoice_id);
         if (!$invoice_id) {
             error_log('woo_inv_to_rs: Could not find RepairShopr invoice for order ' . $order_id . ' (number: ' . $invoice_number . ')');
