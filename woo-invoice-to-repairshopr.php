@@ -641,8 +641,9 @@ if ($api_key) {
     if (!is_wp_error($response)) {
         $body = $response_body;
         $data = json_decode($body, true);
-        if (!empty($data['invoices'][0]['id'])) {
-            $invoice_id = $data['invoices'][0]['id'];
+        // Correct extraction for /invoices/{number} endpoint
+        if (!empty($data['invoice']['id'])) {
+            $invoice_id = $data['invoice']['id'];
         }
     }
 }
