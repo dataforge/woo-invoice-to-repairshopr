@@ -799,7 +799,7 @@ function woo_inv_to_rs_ajax_verify_invoice() {
     }
 
     $invoice_number = $invoice_prefix . $order->get_order_number();
-    $invoice_api_url = rtrim($api_base, '/') . '/invoices?number=' . urlencode($invoice_number);
+    $invoice_api_url = rtrim($api_base, '/') . '/invoices/' . urlencode($invoice_number);
 
     error_log('woo_inv_to_rs: Fetching RepairShopr invoice from: ' . $invoice_api_url);
 
@@ -819,13 +819,13 @@ function woo_inv_to_rs_ajax_verify_invoice() {
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    if (empty($data['invoices']) || !isset($data['invoices'][0]['total'])) {
+    if (empty($data['invoice']) || !isset($data['invoice']['total'])) {
         error_log('woo_inv_to_rs: RepairShopr invoice not found or total missing for invoice number: ' . $invoice_number);
         wp_send_json_error(array('message' => 'RepairShopr invoice not found or total missing.'));
         return;
     }
 
-    $repairshopr_total = floatval($data['invoices'][0]['total']);
+    $repairshopr_total = floatval($data['invoice']['total']);
 
     error_log('woo_inv_to_rs: WooCommerce Total: ' . $woocommerce_total . ', RepairShopr Total: ' . $repairshopr_total);
 
