@@ -734,18 +734,23 @@ $payment_url = $api_base . '/payments';
             'body' => json_encode($payment_body)
         ));
 
+        $body = wp_remote_retrieve_body($response);
+
+        // Log the payment API response immediately after the request, before any error handling
+        $logfile = WP_CONTENT_DIR . '/debug.log';
+        $logline = date('c') . ' woo_inv_to_rs: Payment API Response: ' . $body . PHP_EOL;
+        $fh = fopen($logfile, 'a');
+        if ($fh) {
+            fwrite($fh, $logline);
+            fflush($fh);
+            fclose($fh);
+        }
+
         if (is_wp_error($response)) {
             error_log('woo_inv_to_rs: Error sending payment to RepairShopr: ' . $response->get_error_message());
             wp_send_json_error(array('message' => 'Error sending payment to RepairShopr: ' . $response->get_error_message()));
             return;
         }
-
-        $body = wp_remote_retrieve_body($response);
-
-        // Log the payment API response
-        $logfile = WP_CONTENT_DIR . '/debug.log';
-        $logline = date('c') . ' woo_inv_to_rs: Payment API Response: ' . $body . PHP_EOL;
-        file_put_contents($logfile, $logline, FILE_APPEND);
 
         $data = json_decode($body, true);
 
