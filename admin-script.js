@@ -125,10 +125,22 @@ jQuery(document).ready(function($) {
             beforeSend: function() {
                 console.log('woo_inv_to_rs: Sending AJAX request for verification');
             },
-            success: function(response) {
+success: function(response) {
                 console.log('woo_inv_to_rs: AJAX response received (verification):', response);
                 if (response.success) {
-                    button.text('Verified!').addClass('button-primary');
+                    // Remove previous color classes and inline styles
+                    button.removeClass('button-primary button-secondary')
+                          .css('background-color', '')
+                          .css('color', '');
+                    if (response.data && response.data.match) {
+                        button.text('$ Match')
+                              .css('background-color', 'green')
+                              .css('color', 'white');
+                    } else {
+                        button.text('$ Mismatch')
+                              .css('background-color', 'red')
+                              .css('color', 'white');
+                    }
                 } else {
                     button.text('Error').addClass('button-secondary');
                     var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
