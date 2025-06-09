@@ -610,7 +610,7 @@ function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
 $api_base = get_option('woo_inv_to_rs_api_url', '');
 // Sanitize: remove any trailing endpoint (e.g., /customers, /invoices, /payment_methods)
 $api_base = preg_replace('#/(customers|invoices|payment_methods)$#', '', rtrim($api_base, '/'));
-$invoice_url = $api_base . '/invoices?number=' . urlencode($invoice_number);
+$invoice_url = $api_base . '/invoices/' . urlencode($invoice_number);
         $api_key = woo_inv_to_rs_get_api_key();
         $invoice_id = 0;
         if ($api_key) {
