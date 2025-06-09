@@ -736,12 +736,40 @@ $payment_url = $api_base . '/payments';
 
         $body = wp_remote_retrieve_body($response);
 
-        // Log the payment API response immediately after the request, before any error handling
+        // Debug: log before writing payment API response
         $logfile = WP_CONTENT_DIR . '/debug.log';
+        $prelog = date('c') . ' woo_inv_to_rs: About to log Payment API Response' . PHP_EOL;
+        $fh = fopen($logfile, 'a');
+        if ($fh) {
+            fwrite($fh, $prelog);
+            fflush($fh);
+            fclose($fh);
+        }
+
+        // Log the payment API response immediately after the request, before any error handling
         $logline = date('c') . ' woo_inv_to_rs: Payment API Response: ' . $body . PHP_EOL;
         $fh = fopen($logfile, 'a');
         if ($fh) {
             fwrite($fh, $logline);
+            fflush($fh);
+            fclose($fh);
+        }
+
+        // Debug: log after writing payment API response
+        $postlog = date('c') . ' woo_inv_to_rs: Finished logging Payment API Response' . PHP_EOL;
+        $fh = fopen($logfile, 'a');
+        if ($fh) {
+            fwrite($fh, $postlog);
+            fflush($fh);
+            fclose($fh);
+        }
+
+        // Log HTTP status code
+        $http_code = wp_remote_retrieve_response_code($response);
+        $statuslog = date('c') . ' woo_inv_to_rs: Payment API HTTP status: ' . $http_code . PHP_EOL;
+        $fh = fopen($logfile, 'a');
+        if ($fh) {
+            fwrite($fh, $statuslog);
             fflush($fh);
             fclose($fh);
         }
