@@ -100,4 +100,53 @@ jQuery(document).ready(function($) {
 
         return false;
     });
+
+    // Handler for $ Verify button (legacy orders page)
+    $(document).on('click', '.woo_inv_to_rs-verify-invoice', function(e) {
+        console.log('woo_inv_to_rs: CLICK HANDLER TRIGGERED for .woo_inv_to_rs-verify-invoice');
+        e.preventDefault();
+        e.stopPropagation();
+
+        var button = $(this);
+        var orderId = button.data('order-id');
+
+        console.log('woo_inv_to_rs: $ Verify button clicked for order ID:', orderId);
+
+        button.prop('disabled', true).text('Verifying...');
+
+        $.ajax({
+            url: woo_inv_to_rs_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'woo_inv_to_rs_verify_invoice',
+                order_id: orderId,
+                nonce: woo_inv_to_rs_ajax.nonce
+            },
+            beforeSend: function() {
+                console.log('woo_inv_to_rs: Sending AJAX request for verification');
+            },
+            success: function(response) {
+                console.log('woo_inv_to_rs: AJAX response received (verification):', response);
+                if (response.success) {
+                    button.text('Verified!').addClass('button-primary');
+                } else {
+                    button.text('Error').addClass('button-secondary');
+                    var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
+                    console.error('woo_inv_to_rs: Error message (verification):', msg);
+                    alert('Error: ' + msg + '\nPlease check the error logs for more details.');
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('woo_inv_to_rs: AJAX error (verification):', textStatus, errorThrown);
+                console.log('woo_inv_to_rs: Full error object (verification):', jqXHR);
+                button.text('Error').addClass('button-secondary');
+                alert('An error occurred while verifying the invoice. Please check the error logs for more details.');
+            },
+            complete: function() {
+                button.prop('disabled', false);
+            }
+        });
+
+        return false;
+    });
 });

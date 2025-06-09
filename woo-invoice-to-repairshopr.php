@@ -477,7 +477,8 @@ function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
     if ($column == 'repairshopr') {
         error_log('woo_inv_to_rs: rendering Send Invoice and Send Payment buttons for order ' . $post_id);
         echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($post_id) . '">Send Invoice</button> ';
-        echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($post_id) . '">Send Payment</button>';
+        echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($post_id) . '">Send Payment</button> ';
+        echo '<button type="button" class="button woo_inv_to_rs-verify-invoice" data-order-id="' . esc_attr($post_id) . '">$ Verify</button>';
     }
 }
 
@@ -501,7 +502,8 @@ function woo_inv_to_rs_hpos_order_repairshopr_column_content($column, $order) {
         $order_id = is_object($order) && method_exists($order, 'get_id') ? $order->get_id() : (is_numeric($order) ? $order : 0);
         if ($order_id) {
             echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($order_id) . '">Send Invoice</button> ';
-            echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($order_id) . '">Send Payment</button>';
+            echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($order_id) . '">Send Payment</button> ';
+            echo '<button type="button" class="button woo_inv_to_rs-verify-invoice" data-order-id="' . esc_attr($order_id) . '">$ Verify</button>';
         }
     }
 }
@@ -552,6 +554,7 @@ add_action('admin_enqueue_scripts', 'woo_inv_to_rs_enqueue_admin_scripts');
 // AJAX handler for sending invoice to RepairShopr
 add_action('wp_ajax_woo_inv_to_rs_send_to_repairshopr', 'woo_inv_to_rs_ajax_send_to_repairshopr');
 add_action('wp_ajax_woo_inv_to_rs_send_payment_to_repairshopr', 'woo_inv_to_rs_ajax_send_payment_to_repairshopr');
+add_action('wp_ajax_woo_inv_to_rs_verify_invoice', 'woo_inv_to_rs_ajax_verify_invoice');
 
 function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
     error_log('woo_inv_to_rs: AJAX handler for Send Payment triggered');
@@ -757,6 +760,30 @@ $payment_url = $api_base . '/payments';
         wp_send_json_error(array('message' => 'Invalid order ID'));
     }
 }
+
+function woo_inv_to_rs_ajax_verify_invoice() {
+    error_log('woo_inv_to_rs: AJAX handler for Verify Invoice triggered');
+
+    if (!current_user_can('edit_shop_orders') || !check_ajax_referer('woo_inv_to_rs_nonce', 'nonce', false)) {
+        error_log('woo_inv_to_rs: Permission check failed (Verify Invoice)');
+        wp_send_json_error(array('message' => 'Permission denied'));
+        return;
+    }
+
+    $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
+    error_log('woo_inv_to_rs: Order ID (Verify Invoice): ' . $order_id);
+
+    if ($order_id > 0) {
+        // Placeholder for actual verification logic
+        // In a real scenario, you would call a function like woo_inv_to_rs_verify_repairshopr_invoice($order_id)
+        // For now, just return a success message.
+        wp_send_json_success(array('message' => 'Invoice verification initiated for order ' . $order_id . '. (Actual verification logic to be implemented)'));
+    } else {
+        error_log('woo_inv_to_rs: Invalid order ID (Verify Invoice)');
+        wp_send_json_error(array('message' => 'Invalid order ID'));
+    }
+}
+
 function woo_inv_to_rs_ajax_send_to_repairshopr() {
     error_log('woo_inv_to_rs: AJAX handler triggered');
 

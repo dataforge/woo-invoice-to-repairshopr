@@ -143,6 +143,54 @@
                                 }
                             },
                             'Send Payment'
+                        ),
+                        createElement(
+                            'button',
+                            {
+                                className: 'components-button is-secondary woo_inv_to_rs-verify-invoice',
+                                style: { marginLeft: '8px' },
+                                'data-order-id': order.id,
+                                onClick: (event) => {
+                                    // Use AJAX to trigger the PHP handler for verification
+                                    if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
+                                        const button = event.target;
+                                        button.disabled = true;
+                                        button.textContent = 'Verifying...';
+                                        fetch(window.woo_inv_to_rs_ajax.ajax_url, {
+                                            method: 'POST',
+                                            credentials: 'same-origin',
+                                            headers: {
+                                                'Content-Type': 'application/x-www-form-urlencoded',
+                                            },
+                                            body: new URLSearchParams({
+                                                action: 'woo_inv_to_rs_verify_invoice',
+                                                order_id: order.id,
+                                                nonce: window.woo_inv_to_rs_ajax ? window.woo_inv_to_rs_ajax.nonce : '',
+                                            }),
+                                        })
+                                            .then((res) => res.json())
+                                            .then((response) => {
+                                                if (response.success) {
+                                                    button.textContent = 'Verified!';
+                                                    button.classList.add('is-primary');
+                                                } else {
+                                                    button.textContent = 'Error';
+                                                    button.classList.add('is-secondary');
+                                                    alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                                }
+                                            })
+                                            .catch((err) => {
+                                                button.textContent = 'Error';
+                                                button.classList.add('is-secondary');
+                                                alert('An error occurred while verifying the invoice.');
+                                            })
+                                            .finally(() => {
+                                                button.disabled = false;
+                                            });
+                                    }
+                                }
+                            },
+                            '$ Verify'
                         )
                     );
         }
