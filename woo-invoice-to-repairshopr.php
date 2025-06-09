@@ -773,14 +773,76 @@ function woo_inv_to_rs_ajax_verify_invoice() {
     $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
     error_log('woo_inv_to_rs: Order ID (Verify Invoice): ' . $order_id);
 
-    if ($order_id > 0) {
-        // Placeholder for actual verification logic
-        // In a real scenario, you would call a function like woo_inv_to_rs_verify_repairshopr_invoice($order_id)
-        // For now, just return a success message.
-        wp_send_json_success(array('message' => 'Invoice verification initiated for order ' . $order_id . '. (Actual verification logic to be implemented)'));
-    } else {
+    if ($order_id <= 0) {
         error_log('woo_inv_to_rs: Invalid order ID (Verify Invoice)');
         wp_send_json_error(array('message' => 'Invalid order ID'));
+        return;
+    }
+
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        error_log('woo_inv_to_rs: Order not found (Verify Invoice)');
+        wp_send_json_error(array('message' => 'Order not found'));
+        return;
+    }
+
+    $woocommerce_total = floatval($order->get_total());
+
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    $api_key = woo_inv_to_rs_get_api_key();
+    $invoice_prefix = get_option('woo_inv_to_rs_invoice_prefix', '');
+
+    if (empty($api_base) || empty($api_key)) {
+        error_log('woo_inv_to_rs: RepairShopr API URL or API Key not configured.');
+        wp_send_json_error(array('message' => 'RepairShopr API URL or API Key not configured.'));
+        return;
+    }
+
+    $invoice_number = $invoice_prefix . $order->get_order_number();
+    $invoice_api_url = rtrim($api_base, '/') . '/invoices?number=' . urlencode($invoice_number);
+
+    error_log('woo_inv_to_rs: Fetching RepairShopr invoice from: ' . $invoice_api_url);
+
+    $response = wp_remote_get($invoice_api_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Accept' => 'application/json'
+        )
+    ));
+
+    if (is_wp_error($response)) {
+        error_log('woo_inv_to_rs: Error fetching RepairShopr invoice: ' . $response->get_error_message());
+        wp_send_json_error(array('message' => 'Error fetching RepairShopr invoice: ' . $response->get_error_message()));
+        return;
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (empty($data['invoices']) || !isset($data['invoices'][0]['total'])) {
+        error_log('woo_inv_to_rs: RepairShopr invoice not found or total missing for invoice number: ' . $invoice_number);
+        wp_send_json_error(array('message' => 'RepairShopr invoice not found or total missing.'));
+        return;
+    }
+
+    $repairshopr_total = floatval($data['invoices'][0]['total']);
+
+    error_log('woo_inv_to_rs: WooCommerce Total: ' . $woocommerce_total . ', RepairShopr Total: ' . $repairshopr_total);
+
+    if (abs($woocommerce_total - $repairshopr_total) < 0.01) { // Compare with a small tolerance for float precision
+        wp_send_json_success(array(
+            'message' => 'Totals Match!',
+            'match' => true,
+            'woocommerce_total' => $woocommerce_total,
+            'repairshopr_total' => $repairshopr_total
+        ));
+    } else {
+        wp_send_json_success(array(
+            'message' => 'Totals Mismatch!',
+            'match' => false,
+            'woocommerce_total' => $woocommerce_total,
+            'repairshopr_total' => $repairshopr_total
+        ));
     }
 }
 

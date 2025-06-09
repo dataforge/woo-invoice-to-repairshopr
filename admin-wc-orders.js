@@ -171,8 +171,23 @@
                                             .then((res) => res.json())
                                             .then((response) => {
                                                 if (response.success) {
-                                                    button.textContent = 'Verified!';
-                                                    button.classList.add('is-primary');
+                                                    if (response.data && response.data.match) {
+                                                        button.textContent = '$ Match';
+                                                        button.style.backgroundColor = 'green';
+                                                        button.style.color = 'white'; // Ensure text is readable
+                                                        button.classList.remove('is-secondary');
+                                                        button.classList.add('is-primary'); // Use is-primary for consistency if it provides a good base style
+                                                    } else if (response.data && response.data.match === false) {
+                                                        button.textContent = '$ Mismatch';
+                                                        button.style.backgroundColor = 'red';
+                                                        button.style.color = 'white'; // Ensure text is readable
+                                                        button.classList.remove('is-secondary');
+                                                        button.classList.add('is-primary'); // Use is-primary for consistency if it provides a good base style
+                                                    } else {
+                                                        button.textContent = 'Error';
+                                                        button.classList.add('is-secondary');
+                                                        alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                                    }
                                                 } else {
                                                     button.textContent = 'Error';
                                                     button.classList.add('is-secondary');
