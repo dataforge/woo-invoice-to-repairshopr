@@ -166,49 +166,23 @@ class WIR_API_Client {
      * @return array|false Customer data or false if not found
      */
     public static function get_customer_by_email($email) {
-        // Use complex URL building with fallback like original
-        $api_base = get_option('woo_inv_to_rs_api_url', '');
-        if ($api_base) {
-            // Remove any trailing /customers or /customers/ from the base
-            // Always append /customers to the API base (which should NOT end with /customers)
-            $base_url = rtrim($api_base, '/') . '/customers';
-        } else {
-            $base_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
-        }
-        
-        // Convert email to lowercase to match RepairShopr's email normalization
-        $api_url = $base_url . '?email=' . urlencode(strtolower($email));
-
-        // Log the API request URL
-        error_log('RepairShopr Get Customer API Request URL: ' . $api_url);
-
         $api_key = self::get_api_key();
         if (empty($api_key)) {
             return false;
         }
 
-        $response = wp_remote_get($api_url, array(
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $api_key,
-                'Accept' => 'application/json'
-            )
-        ));
+        // Always use the base API URL and call the customers endpoint as a relative path
+        $endpoint = 'customers?email=' . urlencode(strtolower($email));
+        $response = self::get($endpoint);
 
         // Log the API response
-        error_log('RepairShopr Get Customer API Response: ' . wp_remote_retrieve_body($response));
+        error_log('RepairShopr Get Customer API Response: ' . json_encode($response));
 
-        if (is_wp_error($response)) {
+        if (is_wp_error($response) || empty($response['customers'])) {
             return false;
         }
 
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-
-        if (!empty($data['customers'])) {
-            return $data['customers'][0];
-        }
-
-        return false;
+        return $response['customers'][0];
     }
 
     /**
