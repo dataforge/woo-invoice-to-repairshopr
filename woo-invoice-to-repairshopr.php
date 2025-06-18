@@ -682,122 +682,88 @@ $body = array(
         }
     }
 
-    // Post-creation total verification and correction
-    error_log('woo_inv_to_rs: Starting post-creation total verification for Invoice ID: ' . $invoice_id);
+    // Post-creation rounding correction check
+    error_log('woo_inv_to_rs: Starting post-creation rounding correction check for Invoice ID: ' . $invoice_id);
     
-    // Fetch the created invoice to verify totals
-    $verification_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id;
-    $verification_response = wp_remote_get($verification_url, array(
-        'headers' => array(
-            'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
-            'Accept' => 'application/json'
-        )
-    ));
+    // Get rounding correction settings
+    $rounding_correction_name = trim(get_option('woo_inv_to_rs_rounding_correction_name', ''));
+    $rounding_correction_product_id = trim(get_option('woo_inv_to_rs_rounding_correction_product_id', ''));
     
-    if (!is_wp_error($verification_response)) {
-        $verification_body = wp_remote_retrieve_body($verification_response);
-        $verification_data = json_decode($verification_body, true);
+    // Only proceed with rounding correction if both settings are configured
+    if ($rounding_correction_name !== '' && $rounding_correction_product_id !== '') {
+        // Fetch the created invoice to check totals
+        $verification_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id;
+        $verification_response = wp_remote_get($verification_url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                'Accept' => 'application/json'
+            )
+        ));
         
-        if (isset($verification_data['invoice'])) {
-            $rs_invoice = $verification_data['invoice'];
-            $rs_total = floatval($rs_invoice['total']);
-            $rs_subtotal = floatval($rs_invoice['subtotal']);
-            $rs_tax = floatval($rs_invoice['tax']);
+        if (!is_wp_error($verification_response)) {
+            $verification_body = wp_remote_retrieve_body($verification_response);
+            $verification_data = json_decode($verification_body, true);
             
-            error_log('woo_inv_to_rs: Total Verification - WC Total: ' . $wc_total . ', RS Total: ' . $rs_total . ', Difference: ' . ($wc_total - $rs_total));
-            error_log('woo_inv_to_rs: Subtotal Verification - WC Subtotal+Fees: ' . ($wc_subtotal + $wc_fees_total) . ', RS Subtotal: ' . $rs_subtotal);
-            error_log('woo_inv_to_rs: Tax Verification - WC Tax: ' . $wc_total_tax . ', RS Tax: ' . $rs_tax);
-            
-            // Check if totals match exactly
-            $total_difference = abs($wc_total - $rs_total);
-            $tax_difference = abs($wc_total_tax - $rs_tax);
-            
-            if ($total_difference > 0.001 || $tax_difference > 0.001) {
-                error_log('woo_inv_to_rs: Total mismatch detected. Attempting correction...');
+            if (isset($verification_data['invoice'])) {
+                $rs_invoice = $verification_data['invoice'];
+                $rs_total = floatval($rs_invoice['total']);
                 
-                // Calculate the required subtotal to achieve the exact WooCommerce total
-                // Formula: Required Subtotal = WC Total - WC Tax
-                $required_subtotal = $wc_total - $wc_total_tax;
+                error_log('woo_inv_to_rs: Rounding Check - WC Total: ' . $wc_total . ', RS Total: ' . $rs_total);
                 
-                // Update the invoice with calculated subtotal and exact WooCommerce totals
-                $correction_body = array(
-                    'subtotal' => number_format($required_subtotal, 2, '.', ''),
-                    'total' => number_format($wc_total, 2, '.', ''),
-                    'tax' => number_format($wc_total_tax, 2, '.', '')
-                );
+                // Calculate the difference
+                $total_difference = $wc_total - $rs_total;
                 
-                error_log('woo_inv_to_rs: Applying total correction with calculated subtotal: ' . json_encode($correction_body));
-                
-                $correction_response = wp_remote_request($verification_url, array(
-                    'method' => 'PUT',
-                    'headers' => array(
-                        'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
-                        'Content-Type' => 'application/json',
-                        'Accept' => 'application/json'
-                    ),
-                    'body' => json_encode($correction_body)
-                ));
-                
-                if (!is_wp_error($correction_response)) {
-                    $correction_result = wp_remote_retrieve_body($correction_response);
-                    error_log('woo_inv_to_rs: Total correction response: ' . $correction_result);
+                // Check if difference is within acceptable range for rounding correction
+                if (abs($total_difference) > 0.001 && abs($total_difference) <= 0.10) {
+                    error_log('woo_inv_to_rs: Rounding difference detected: ' . $total_difference . '. Adding rounding correction line item.');
                     
-                    $correction_data = json_decode($correction_result, true);
-                    if (isset($correction_data['invoice'])) {
-                        $corrected_total = floatval($correction_data['invoice']['total']);
-                        $corrected_tax = floatval($correction_data['invoice']['tax']);
-                        $final_total_difference = abs($wc_total - $corrected_total);
-                        $final_tax_difference = abs($wc_total_tax - $corrected_tax);
+                    // Add rounding correction line item
+                    $line_item_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id . '/line_items';
+                    
+                    $rounding_correction_body = array(
+                        'id' => 0,
+                        'line_discount_percent' => 0,
+                        'discount_dollars' => '0',
+                        'product_id' => $rounding_correction_product_id,
+                        'price' => number_format($total_difference, 2, '.', ''),
+                        'cost' => 0,
+                        'quantity' => 1,
+                        'taxable' => false // Rounding corrections should not be taxable
+                    );
+                    
+                    error_log('woo_inv_to_rs: Adding rounding correction line item: ' . json_encode($rounding_correction_body));
+                    
+                    $rounding_response = wp_remote_post($line_item_url, array(
+                        'headers' => array(
+                            'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                            'Content-Type' => 'application/json',
+                            'Accept' => 'application/json'
+                        ),
+                        'body' => json_encode($rounding_correction_body)
+                    ));
+                    
+                    if (!is_wp_error($rounding_response)) {
+                        $rounding_result = wp_remote_retrieve_body($rounding_response);
+                        error_log('woo_inv_to_rs: Rounding correction line item added: ' . $rounding_result);
                         
-                        if ($final_total_difference <= 0.001 && $final_tax_difference <= 0.001) {
-                            error_log('woo_inv_to_rs: Total correction successful. Final total difference: ' . $final_total_difference . ', tax difference: ' . $final_tax_difference);
-                        } else {
-                            error_log('woo_inv_to_rs: Total correction incomplete. Final total difference: ' . $final_total_difference . ', tax difference: ' . $final_tax_difference);
-                            
-                            // If RepairShopr is still not matching, try a second correction with forced values
-                            $force_correction_body = array(
-                                'subtotal' => number_format($corrected_total - $wc_total_tax, 2, '.', ''),
-                                'total' => number_format($wc_total, 2, '.', ''),
-                                'tax' => number_format($wc_total_tax, 2, '.', ''),
-                                'verified_paid' => (get_option('woo_inv_to_rs_verified_paid', '1') === '1') && $order->is_paid(),
-                                'tech_marked_paid' => (get_option('woo_inv_to_rs_tech_marked_paid', '1') === '1') && $order->is_paid(),
-                                'is_paid' => (get_option('woo_inv_to_rs_is_paid', '1') === '1') && $order->is_paid()
-                            );
-                            
-                            error_log('woo_inv_to_rs: Applying forced total correction: ' . json_encode($force_correction_body));
-                            
-                            $force_response = wp_remote_request($verification_url, array(
-                                'method' => 'PUT',
-                                'headers' => array(
-                                    'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
-                                    'Content-Type' => 'application/json',
-                                    'Accept' => 'application/json'
-                                ),
-                                'body' => json_encode($force_correction_body)
-                            ));
-                            
-                            if (!is_wp_error($force_response)) {
-                                $force_result = wp_remote_retrieve_body($force_response);
-                                error_log('woo_inv_to_rs: Forced correction response: ' . $force_result);
-                                
-                                $force_data = json_decode($force_result, true);
-                                if (isset($force_data['invoice'])) {
-                                    $final_corrected_total = floatval($force_data['invoice']['total']);
-                                    $ultimate_difference = abs($wc_total - $final_corrected_total);
-                                    error_log('woo_inv_to_rs: Ultimate correction difference: ' . $ultimate_difference);
-                                }
-                            }
+                        $rounding_data = json_decode($rounding_result, true);
+                        if (isset($rounding_data['line_item'])) {
+                            error_log('woo_inv_to_rs: Rounding correction successfully applied. Amount: ' . $total_difference);
                         }
+                    } else {
+                        error_log('woo_inv_to_rs: Failed to add rounding correction line item: ' . $rounding_response->get_error_message());
                     }
+                } elseif (abs($total_difference) > 0.10) {
+                    error_log('woo_inv_to_rs: Total difference (' . $total_difference . ') exceeds maximum rounding correction limit of $0.10. No correction applied.');
                 } else {
-                    error_log('woo_inv_to_rs: Total correction failed: ' . $correction_response->get_error_message());
+                    error_log('woo_inv_to_rs: Totals match within acceptable precision. No rounding correction needed.');
                 }
-            } else {
-                error_log('woo_inv_to_rs: Totals match exactly. No correction needed.');
             }
+        } else {
+            error_log('woo_inv_to_rs: Could not verify invoice totals for rounding correction: ' . $verification_response->get_error_message());
         }
     } else {
-        error_log('woo_inv_to_rs: Could not verify invoice totals: ' . $verification_response->get_error_message());
+        error_log('woo_inv_to_rs: Rounding correction not configured. Skipping rounding correction check.');
     }
 
     error_log('RepairShopr Invoice created successfully with all line items. Invoice ID: ' . $invoice_id);
@@ -1514,6 +1480,8 @@ function woo_invoice_to_repairshopr_settings_page() {
         $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
         $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
         $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
+        $rounding_correction_name = get_option('woo_inv_to_rs_rounding_correction_name', '');
+        $rounding_correction_product_id = get_option('woo_inv_to_rs_rounding_correction_product_id', '');
         $notes = get_option('woo_inv_to_rs_notes', 'Created by WooCommerce');
         $invoice_note = get_option('woo_inv_to_rs_invoice_note', 'Order created from WooCommerce');
         $get_sms = get_option('woo_inv_to_rs_get_sms', '1');
@@ -1554,6 +1522,17 @@ function woo_invoice_to_repairshopr_settings_page() {
                 update_option('woo_inv_to_rs_epf_name', $epf_name_submitted);
                 update_option('woo_inv_to_rs_epf_product_id', $epf_product_id_submitted);
             }
+            
+            // Rounding Correction settings
+            $rounding_correction_name_submitted = isset($_POST['woo_inv_to_rs_rounding_correction_name']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_rounding_correction_name'])) : '';
+            $rounding_correction_product_id_submitted = isset($_POST['woo_inv_to_rs_rounding_correction_product_id']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_rounding_correction_product_id'])) : '';
+            if (($rounding_correction_name_submitted !== '' && $rounding_correction_product_id_submitted === '') || ($rounding_correction_name_submitted === '' && $rounding_correction_product_id_submitted !== '')) {
+                echo '<div class="error"><p><strong>Both Rounding Correction Name and Product ID must be filled together, or both left blank. Rounding correction settings not saved.</strong></p></div>';
+            } else {
+                update_option('woo_inv_to_rs_rounding_correction_name', $rounding_correction_name_submitted);
+                update_option('woo_inv_to_rs_rounding_correction_product_id', $rounding_correction_product_id_submitted);
+            }
+            
             // Invoice Prefix (numbers only)
             if (isset($_POST['woo_inv_to_rs_invoice_prefix'])) {
                 $prefix = trim($_POST['woo_inv_to_rs_invoice_prefix']);
@@ -1675,6 +1654,20 @@ function woo_invoice_to_repairshopr_settings_page() {
                         <td>
 <input type="text" id="woo_inv_to_rs_epf_product_id" name="woo_inv_to_rs_epf_product_id" value="<?php echo esc_attr($epf_product_id); ?>" class="regular-text" autocomplete="off">
                             <p class="description">Optional. Enter the RepairShopr Product ID to use for the electronic payment fee. <strong>If you enter a value here, you must also enter a Fee Name above. Both fields must be filled for the fee to be exported. If both are left blank, no fee will be exported to RepairShopr.</strong></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="woo_inv_to_rs_rounding_correction_name">Rounding Correction Name</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_rounding_correction_name" name="woo_inv_to_rs_rounding_correction_name" value="<?php echo esc_attr($rounding_correction_name); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Optional. Enter the name for the rounding correction line item (e.g., "Rounding Correction", "Tax Adjustment"). <strong>If you enter a value here, you must also enter a Product ID below. Both fields must be filled for rounding corrections to be applied. If both are left blank, no rounding corrections will be made and invoices may have small differences. The RepairShopr item should NOT be marked as taxable.</strong></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="woo_inv_to_rs_rounding_correction_product_id">Rounding Correction Product ID</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_rounding_correction_product_id" name="woo_inv_to_rs_rounding_correction_product_id" value="<?php echo esc_attr($rounding_correction_product_id); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Optional. Enter the RepairShopr Product ID to use for rounding corrections. <strong>If you enter a value here, you must also enter a Correction Name above. Both fields must be filled for rounding corrections to be applied. If both are left blank, no rounding corrections will be made. The RepairShopr item should NOT be marked as taxable.</strong></p>
                         </td>
                     </tr>
                     <tr>
