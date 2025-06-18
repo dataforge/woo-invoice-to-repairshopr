@@ -309,6 +309,10 @@ class WIR_Admin_Settings {
                         <th><label for="woo_inv_to_rs_tax_rate_id">Tax Rate ID</label></th>
                         <td>
                             <input type="number" id="woo_inv_to_rs_tax_rate_id" name="woo_inv_to_rs_tax_rate_id" value="<?php echo esc_attr($tax_rate_id); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">
+                                Enter the RepairShopr Tax ID to use for invoices created in RepairShopr.<br>
+                                <strong>RepairShopr does not provide a way to create tax rates via API, so only one can be set here.</strong>
+                            </p>
                         </td>
                     </tr>
                     <tr>
