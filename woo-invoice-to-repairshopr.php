@@ -76,6 +76,16 @@ function woo_inv_to_rs_send_invoice_to_repairshopr($order_id) {
 
     error_log("woo_inv_to_rs: Starting to process paid order $order_id for customer email: $customer_email");
 
+    // Check if invoice already exists in RepairShopr
+    $invoice_prefix = get_option('woo_inv_to_rs_invoice_prefix', '');
+    $invoice_number = $invoice_prefix . $order->get_order_number();
+    $existing_invoice = woo_inv_to_rs_check_invoice_exists($invoice_number);
+    
+    if ($existing_invoice) {
+        error_log("woo_inv_to_rs: Invoice $invoice_number already exists in RepairShopr with ID: " . $existing_invoice['id']);
+        return array('exists' => true, 'invoice_id' => $existing_invoice['id'], 'message' => 'Invoice already exists in RepairShopr');
+    }
+
     // Check if customer exists in RepairShopr
     $customer_id = woo_inv_to_rs_get_repairshopr_customer($customer_email);
 
@@ -101,6 +111,128 @@ function woo_inv_to_rs_send_invoice_to_repairshopr($order_id) {
 
     error_log("woo_inv_to_rs: Invoice successfully created in RepairShopr for order $order_id");
     return true;
+}
+
+/**
+ * Check if an invoice already exists in RepairShopr by invoice number
+ *
+ * @param string $invoice_number The invoice number to check
+ * @return array|false Returns invoice data if found, false if not found
+ */
+function woo_inv_to_rs_check_invoice_exists($invoice_number) {
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    if (empty($api_base)) {
+        error_log('woo_inv_to_rs: API URL not configured for invoice check');
+        return false;
+    }
+    
+    $api_key = woo_inv_to_rs_get_api_key();
+    if (empty($api_key)) {
+        error_log('woo_inv_to_rs: API key not configured for invoice check');
+        return false;
+    }
+    
+    $invoice_url = rtrim($api_base, '/') . '/invoices/' . urlencode($invoice_number);
+    
+    error_log('woo_inv_to_rs: Checking if invoice exists: ' . $invoice_url);
+    
+    $response = wp_remote_get($invoice_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Accept' => 'application/json'
+        )
+    ));
+    
+    if (is_wp_error($response)) {
+        error_log('woo_inv_to_rs: Error checking invoice existence: ' . $response->get_error_message());
+        return false;
+    }
+    
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+    
+    // Check if invoice was found
+    if (!empty($data['invoice']['id'])) {
+        error_log('woo_inv_to_rs: Invoice ' . $invoice_number . ' found with ID: ' . $data['invoice']['id']);
+        return $data['invoice'];
+    }
+    
+    error_log('woo_inv_to_rs: Invoice ' . $invoice_number . ' not found in RepairShopr');
+    return false;
+}
+
+/**
+ * Check if a payment already exists for an invoice in RepairShopr
+ *
+ * @param int $invoice_id The RepairShopr invoice ID
+ * @param float $amount The payment amount to check for
+ * @param string $transaction_id The WooCommerce transaction ID
+ * @return array|false Returns payment data if found, false if not found
+ */
+function woo_inv_to_rs_check_payment_exists($invoice_id, $amount, $transaction_id = '') {
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    if (empty($api_base)) {
+        error_log('woo_inv_to_rs: API URL not configured for payment check');
+        return false;
+    }
+    
+    $api_key = woo_inv_to_rs_get_api_key();
+    if (empty($api_key)) {
+        error_log('woo_inv_to_rs: API key not configured for payment check');
+        return false;
+    }
+    
+    // Get invoice details to check existing payments
+    $invoice_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id;
+    
+    error_log('woo_inv_to_rs: Checking for existing payments on invoice ID: ' . $invoice_id);
+    
+    $response = wp_remote_get($invoice_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Accept' => 'application/json'
+        )
+    ));
+    
+    if (is_wp_error($response)) {
+        error_log('woo_inv_to_rs: Error checking invoice for payments: ' . $response->get_error_message());
+        return false;
+    }
+    
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+    
+    if (empty($data['invoice']['payments'])) {
+        error_log('woo_inv_to_rs: No payments found for invoice ID: ' . $invoice_id);
+        return false;
+    }
+    
+    $payments = $data['invoice']['payments'];
+    $amount_formatted = number_format($amount, 2, '.', '');
+    
+    // Check for duplicate payments by amount and/or transaction ID
+    foreach ($payments as $payment) {
+        $payment_amount = isset($payment['payment_amount']) ? number_format(floatval($payment['payment_amount']), 2, '.', '') : '0.00';
+        $payment_ref = isset($payment['ref_num']) ? $payment['ref_num'] : '';
+        
+        // Check if payment amount matches
+        if ($payment_amount === $amount_formatted) {
+            // If we have a transaction ID, check if it matches too
+            if (!empty($transaction_id) && !empty($payment_ref)) {
+                if ($payment_ref === $transaction_id) {
+                    error_log('woo_inv_to_rs: Found duplicate payment by amount and transaction ID for invoice ' . $invoice_id . ': Payment ID ' . $payment['id']);
+                    return $payment;
+                }
+            } else {
+                // No transaction ID to compare, just match by amount
+                error_log('woo_inv_to_rs: Found duplicate payment by amount for invoice ' . $invoice_id . ': Payment ID ' . $payment['id']);
+                return $payment;
+            }
+        }
+    }
+    
+    error_log('woo_inv_to_rs: No duplicate payment found for invoice ' . $invoice_id . ' with amount ' . $amount_formatted);
+    return false;
 }
 
 function woo_inv_to_rs_get_repairshopr_customer($email) {
@@ -665,6 +797,17 @@ if ($api_key) {
             return;
         }
 
+        // Check if payment already exists for this invoice
+        $order_total = $order->get_total();
+        $transaction_id = $order->get_transaction_id();
+        $existing_payment = woo_inv_to_rs_check_payment_exists($invoice_id, $order_total, $transaction_id);
+        
+        if ($existing_payment) {
+            error_log('woo_inv_to_rs: Payment already exists for invoice ' . $invoice_id . ' with Payment ID: ' . $existing_payment['id']);
+            wp_send_json_error(array('message' => 'Payment already exists for this invoice in RepairShopr.'));
+            return;
+        }
+
         // Prepare payment data
         $amount_cents = intval(round($order->get_total() * 100));
         $address_street = $order->get_billing_address_1();
@@ -1069,10 +1212,18 @@ function woo_inv_to_rs_ajax_send_to_repairshopr() {
 
     if ($order_id > 0) {
         $result = woo_inv_to_rs_send_invoice_to_repairshopr($order_id);
-        if ($result) {
+        
+        // Handle different result types
+        if (is_array($result) && isset($result['exists']) && $result['exists']) {
+            // Invoice already exists
+            error_log('woo_inv_to_rs: Invoice already exists for order ' . $order_id);
+            wp_send_json_error(array('message' => $result['message']));
+        } elseif ($result === true) {
+            // Invoice successfully created
             error_log('woo_inv_to_rs: Invoice sent to RepairShopr for order ' . $order_id);
             wp_send_json_success(array('message' => 'Invoice sent to RepairShopr'));
         } else {
+            // Failed to create invoice
             error_log('woo_inv_to_rs: Failed to send invoice to RepairShopr for order ' . $order_id);
             wp_send_json_error(array('message' => 'Failed to send invoice to RepairShopr. Check error logs for details.'));
         }
