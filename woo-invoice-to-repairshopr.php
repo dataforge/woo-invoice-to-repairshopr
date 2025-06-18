@@ -686,11 +686,10 @@ $body = array(
     error_log('woo_inv_to_rs: Starting post-creation rounding correction check for Invoice ID: ' . $invoice_id);
     
     // Get rounding correction settings
-    $rounding_correction_name = trim(get_option('woo_inv_to_rs_rounding_correction_name', ''));
     $rounding_correction_product_id = trim(get_option('woo_inv_to_rs_rounding_correction_product_id', ''));
     
-    // Only proceed with rounding correction if both settings are configured
-    if ($rounding_correction_name !== '' && $rounding_correction_product_id !== '') {
+    // Only proceed with rounding correction if Product ID is configured
+    if ($rounding_correction_product_id !== '') {
         // Fetch the created invoice to check totals
         $verification_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id;
         $verification_response = wp_remote_get($verification_url, array(
@@ -1523,15 +1522,9 @@ function woo_invoice_to_repairshopr_settings_page() {
                 update_option('woo_inv_to_rs_epf_product_id', $epf_product_id_submitted);
             }
             
-            // Rounding Correction settings
-            $rounding_correction_name_submitted = isset($_POST['woo_inv_to_rs_rounding_correction_name']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_rounding_correction_name'])) : '';
+            // Rounding Correction settings - only Product ID is needed now
             $rounding_correction_product_id_submitted = isset($_POST['woo_inv_to_rs_rounding_correction_product_id']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_rounding_correction_product_id'])) : '';
-            if (($rounding_correction_name_submitted !== '' && $rounding_correction_product_id_submitted === '') || ($rounding_correction_name_submitted === '' && $rounding_correction_product_id_submitted !== '')) {
-                echo '<div class="error"><p><strong>Both Rounding Correction Name and Product ID must be filled together, or both left blank. Rounding correction settings not saved.</strong></p></div>';
-            } else {
-                update_option('woo_inv_to_rs_rounding_correction_name', $rounding_correction_name_submitted);
-                update_option('woo_inv_to_rs_rounding_correction_product_id', $rounding_correction_product_id_submitted);
-            }
+            update_option('woo_inv_to_rs_rounding_correction_product_id', $rounding_correction_product_id_submitted);
             
             // Invoice Prefix (numbers only)
             if (isset($_POST['woo_inv_to_rs_invoice_prefix'])) {
@@ -1657,17 +1650,10 @@ function woo_invoice_to_repairshopr_settings_page() {
                         </td>
                     </tr>
                     <tr>
-                        <th><label for="woo_inv_to_rs_rounding_correction_name">Rounding Correction Name</label></th>
-                        <td>
-                            <input type="text" id="woo_inv_to_rs_rounding_correction_name" name="woo_inv_to_rs_rounding_correction_name" value="<?php echo esc_attr($rounding_correction_name); ?>" class="regular-text" autocomplete="off">
-                            <p class="description">Optional. Enter the name for the rounding correction line item (e.g., "Rounding Correction", "Tax Adjustment"). <strong>If you enter a value here, you must also enter a Product ID below. Both fields must be filled for rounding corrections to be applied. If both are left blank, no rounding corrections will be made and invoices may have small differences. The RepairShopr item should NOT be marked as taxable.</strong></p>
-                        </td>
-                    </tr>
-                    <tr>
                         <th><label for="woo_inv_to_rs_rounding_correction_product_id">Rounding Correction Product ID</label></th>
                         <td>
                             <input type="text" id="woo_inv_to_rs_rounding_correction_product_id" name="woo_inv_to_rs_rounding_correction_product_id" value="<?php echo esc_attr($rounding_correction_product_id); ?>" class="regular-text" autocomplete="off">
-                            <p class="description">Optional. Enter the RepairShopr Product ID to use for rounding corrections. <strong>If you enter a value here, you must also enter a Correction Name above. Both fields must be filled for rounding corrections to be applied. If both are left blank, no rounding corrections will be made. The RepairShopr item should NOT be marked as taxable.</strong></p>
+                            <p class="description">Optional. Enter the RepairShopr Product ID to use for rounding corrections. If this field is not entered then no correction will be made. The RepairShopr item should NOT be marked as taxable.</p>
                         </td>
                     </tr>
                     <tr>
