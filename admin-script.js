@@ -147,7 +147,10 @@ jQuery(document).ready(function($) {
                               .css('color', 'white');
                     }
                 } else {
-                    button.text('Error').addClass('button-secondary');
+                    button.text('Invoice Verify Failed')
+                          .removeClass('button-primary button-secondary')
+                          .css('background-color', 'red')
+                          .css('color', 'white');
                     var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
                     console.error('woo_inv_to_rs: Error message (invoice verification):', msg);
                     alert('Error: ' + msg + '\nPlease check the error logs for more details.');
@@ -156,7 +159,10 @@ jQuery(document).ready(function($) {
             error: function(jqXHR, textStatus, errorThrown) {
                 console.error('woo_inv_to_rs: AJAX error (invoice verification):', textStatus, errorThrown);
                 console.log('woo_inv_to_rs: Full error object (invoice verification):', jqXHR);
-                button.text('Error').addClass('button-secondary');
+                button.text('Invoice Verify Failed')
+                      .removeClass('button-primary button-secondary')
+                      .css('background-color', 'red')
+                      .css('color', 'white');
                 alert('An error occurred while verifying the invoice. Please check the error logs for more details.');
             },
             complete: function() {
@@ -208,7 +214,10 @@ jQuery(document).ready(function($) {
                               .css('color', 'white');
                     }
                 } else {
-                    button.text('Error').addClass('button-secondary');
+                    button.text('Payment Verify Failed')
+                          .removeClass('button-primary button-secondary')
+                          .css('background-color', 'red')
+                          .css('color', 'white');
                     var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
                     console.error('woo_inv_to_rs: Error message (payment verification):', msg);
                     alert('Error: ' + msg + '\nPlease check the error logs for more details.');
@@ -217,7 +226,10 @@ jQuery(document).ready(function($) {
             error: function(jqXHR, textStatus, errorThrown) {
                 console.error('woo_inv_to_rs: AJAX error (payment verification):', textStatus, errorThrown);
                 console.log('woo_inv_to_rs: Full error object (payment verification):', jqXHR);
-                button.text('Error').addClass('button-secondary');
+                button.text('Payment Verify Failed')
+                      .removeClass('button-primary button-secondary')
+                      .css('background-color', 'red')
+                      .css('color', 'white');
                 alert('An error occurred while verifying the payment. Please check the error logs for more details.');
             },
             complete: function() {

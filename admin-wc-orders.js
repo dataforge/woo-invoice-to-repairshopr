@@ -204,18 +204,18 @@
                                                         alert('Error: Unexpected response structure. ' + (response.data && response.data.message ? response.data.message : ''));
                                                     }
                                                 } else {
-                                                    button.textContent = 'Error';
-                                                    button.style.backgroundColor = '';
-                                                    button.style.color = '';
-                                                    button.classList.add('is-secondary');
+                                                    button.textContent = 'Invoice Verify Failed';
+                                                    button.style.backgroundColor = 'red';
+                                                    button.style.color = 'white';
+                                                    button.classList.remove('is-secondary');
                                                     alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
                                                 }
                                             })
                                             .catch((err) => {
-                                                button.textContent = 'Error';
-                                                button.style.backgroundColor = '';
-                                                button.style.color = '';
-                                                button.classList.add('is-secondary');
+                                                button.textContent = 'Invoice Verify Failed';
+                                                button.style.backgroundColor = 'red';
+                                                button.style.color = 'white';
+                                                button.classList.remove('is-secondary');
                                                 alert('An error occurred while verifying the invoice: ' + err.message);
                                             })
                                             .finally(() => {
@@ -272,18 +272,18 @@
                                                         alert('Error: Unexpected response structure. ' + (response.data && response.data.message ? response.data.message : ''));
                                                     }
                                                 } else {
-                                                    button.textContent = 'Error';
-                                                    button.style.backgroundColor = '';
-                                                    button.style.color = '';
-                                                    button.classList.add('is-secondary');
+                                                    button.textContent = 'Payment Verify Failed';
+                                                    button.style.backgroundColor = 'red';
+                                                    button.style.color = 'white';
+                                                    button.classList.remove('is-secondary');
                                                     alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
                                                 }
                                             })
                                             .catch((err) => {
-                                                button.textContent = 'Error';
-                                                button.style.backgroundColor = '';
-                                                button.style.color = '';
-                                                button.classList.add('is-secondary');
+                                                button.textContent = 'Payment Verify Failed';
+                                                button.style.backgroundColor = 'red';
+                                                button.style.color = 'white';
+                                                button.classList.remove('is-secondary');
                                                 alert('An error occurred while verifying the payment: ' + err.message);
                                             })
                                             .finally(() => {
