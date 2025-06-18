@@ -397,79 +397,119 @@ function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
         $api_url = get_option('woo_inv_to_rs_invoice_url', 'https://your-subdomain.repairshopr.com/api/v1/invoices');
     }
 
-    // Build line_items array from order items
-    $line_items = array();
-    $calculated_subtotal = 0;
-
-foreach ($order->get_items() as $item) {
-    $product = $item->get_product();
-    $sku = $product ? $product->get_sku() : '';
-    $product_id = $sku ? $sku : 0;
-    $quantity = $item->get_quantity();
-    $price = $quantity > 0 ? number_format($item->get_total() / $quantity, 2, '.', '') : '0.00';
-
-    // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
-    $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($order->get_total_tax() > 0);
-
-    $line_items[] = array(
-        'item' => $product ? $product->get_name() : $item->get_name(),
-        'name' => $product ? $product->get_name() : $item->get_name(),
-        'product_id' => $product_id,
-        'quantity' => (int)$quantity,
-        'cost' => 0,
-        'price' => (float)$price,
-        'discount_percent' => 0,
-        'taxable' => $taxable_flag
-    );
+    // Get WooCommerce authoritative totals (these are the correct values)
+    $wc_subtotal = $order->get_subtotal();
+    $wc_total_tax = $order->get_total_tax();
+    $wc_total = $order->get_total();
+    $wc_fees_total = 0;
     
-    $calculated_subtotal += (float)$price * (int)$quantity;
-}
+    error_log('woo_inv_to_rs: WooCommerce Authoritative Totals - Subtotal: ' . $wc_subtotal . ', Tax: ' . $wc_total_tax . ', Total: ' . $wc_total);
+
+    // Build line_items array from order items with precision handling
+    $line_items = array();
+    $line_item_totals = array(); // Track individual totals for precision adjustment
+
+    foreach ($order->get_items() as $item) {
+        $product = $item->get_product();
+        $sku = $product ? $product->get_sku() : '';
+        $product_id = $sku ? $sku : 0;
+        $quantity = $item->get_quantity();
+        
+        // Use WooCommerce's calculated line total, not recalculated price
+        $line_total = $item->get_total();
+        $price = $quantity > 0 ? $line_total / $quantity : 0;
+        
+        // Store with high precision for later adjustment
+        $line_item_totals[] = $line_total;
+
+        // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
+        $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($wc_total_tax > 0);
+
+        $line_items[] = array(
+            'item' => $product ? $product->get_name() : $item->get_name(),
+            'name' => $product ? $product->get_name() : $item->get_name(),
+            'product_id' => $product_id,
+            'quantity' => (int)$quantity,
+            'cost' => 0,
+            'price' => $price, // Keep high precision initially
+            'discount_percent' => 0,
+            'taxable' => $taxable_flag,
+            'wc_line_total' => $line_total // Store WooCommerce line total for reference
+        );
+    }
 
     // Add Electronic Payment Fee as a line item if present
-$epf_name = trim(get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee'));
-$epf_product_id = trim(get_option('woo_inv_to_rs_epf_product_id', '9263351'));
-if ($epf_name !== '' && $epf_product_id !== '') {
-    foreach ($order->get_fees() as $fee) {
-        error_log('woo_inv_to_rs: Found fee: ' . $fee->get_name() . ' value: ' . $fee->get_total());
-        if ($fee->get_name() == $epf_name) {
-            $fee_total = $fee->get_total();
-            $fee_total_formatted = number_format($fee_total, 2, '.', '');
-            error_log('woo_inv_to_rs: Matched Electronic Payment Fee "' . $epf_name . '" with value: ' . $fee_total_formatted);
-            // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
-            $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($order->get_total_tax() > 0);
-            $line_items[] = array(
-                'item' => $epf_name,
-                'name' => $epf_name,
-                'product_id' => $epf_product_id,
-                'quantity' => "1",
-                'cost' => 0,
-                'price' => $fee_total_formatted,
-                'discount_percent' => 0,
-                'taxable' => $taxable_flag,
-                'upc_code' => '',
-                'tax_note' => ''
-            );
-            $calculated_subtotal += (float)$fee_total_formatted;
-            break;
+    $epf_name = trim(get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee'));
+    $epf_product_id = trim(get_option('woo_inv_to_rs_epf_product_id', '9263351'));
+    if ($epf_name !== '' && $epf_product_id !== '') {
+        foreach ($order->get_fees() as $fee) {
+            error_log('woo_inv_to_rs: Found fee: ' . $fee->get_name() . ' value: ' . $fee->get_total());
+            if ($fee->get_name() == $epf_name) {
+                $fee_total = $fee->get_total();
+                $wc_fees_total += $fee_total;
+                error_log('woo_inv_to_rs: Matched Electronic Payment Fee "' . $epf_name . '" with value: ' . $fee_total);
+                
+                // Only set 'taxable' if the setting is enabled AND the order is taxable (sales tax charged)
+                $taxable_flag = (get_option('woo_inv_to_rs_taxable', '1') === '1') && ($wc_total_tax > 0);
+                
+                $line_items[] = array(
+                    'item' => $epf_name,
+                    'name' => $epf_name,
+                    'product_id' => $epf_product_id,
+                    'quantity' => 1,
+                    'cost' => 0,
+                    'price' => $fee_total, // Keep exact fee amount
+                    'discount_percent' => 0,
+                    'taxable' => $taxable_flag,
+                    'upc_code' => '',
+                    'tax_note' => '',
+                    'wc_line_total' => $fee_total
+                );
+                $line_item_totals[] = $fee_total;
+                break;
+            }
         }
     }
-}
 
-// Ensure the calculated subtotal matches WooCommerce subtotal exactly
-$wc_subtotal = floatval($order->get_subtotal());
-$subtotal_difference = $wc_subtotal - $calculated_subtotal;
+    // Calculate current subtotal from line items
+    $calculated_subtotal = array_sum($line_item_totals);
+    
+    // Apply precision correction to ensure exact match with WooCommerce subtotal + fees
+    $target_subtotal = $wc_subtotal + $wc_fees_total;
+    $subtotal_difference = $target_subtotal - $calculated_subtotal;
+    
+    error_log('woo_inv_to_rs: Subtotal Analysis - WC Subtotal: ' . $wc_subtotal . ', WC Fees: ' . $wc_fees_total . ', Target: ' . $target_subtotal . ', Calculated: ' . $calculated_subtotal . ', Difference: ' . $subtotal_difference);
 
-// If there's a difference, adjust the last line item's price
-if (abs($subtotal_difference) > 0.001 && !empty($line_items)) {
-    $last_item_index = count($line_items) - 1;
-    $last_item = &$line_items[$last_item_index];
-    $quantity = (int)$last_item['quantity'];
-    if ($quantity > 0) {
-        $adjusted_price = (float)$last_item['price'] + ($subtotal_difference / $quantity);
-        $last_item['price'] = number_format($adjusted_price, 2, '.', '');
-        error_log('woo_inv_to_rs: Adjusted last line item price by ' . number_format($subtotal_difference, 2, '.', '') . ' to ensure total matches. New price: ' . $last_item['price']);
+    // Distribute any rounding difference proportionally across line items
+    if (abs($subtotal_difference) > 0.001 && !empty($line_items)) {
+        error_log('woo_inv_to_rs: Applying precision correction of ' . $subtotal_difference);
+        
+        // Find the largest line item to absorb the difference (most stable approach)
+        $largest_item_index = 0;
+        $largest_amount = 0;
+        
+        for ($i = 0; $i < count($line_items); $i++) {
+            if ($line_items[$i]['wc_line_total'] > $largest_amount) {
+                $largest_amount = $line_items[$i]['wc_line_total'];
+                $largest_item_index = $i;
+            }
+        }
+        
+        // Apply the correction to the largest line item
+        $quantity = $line_items[$largest_item_index]['quantity'];
+        if ($quantity > 0) {
+            $adjusted_price = $line_items[$largest_item_index]['price'] + ($subtotal_difference / $quantity);
+            $line_items[$largest_item_index]['price'] = $adjusted_price;
+            error_log('woo_inv_to_rs: Applied precision correction to line item ' . $largest_item_index . ': ' . $subtotal_difference . ', new price: ' . $adjusted_price);
+        }
     }
-}
+
+    // Final formatting of prices for RepairShopr API
+    foreach ($line_items as &$item) {
+        $item['price'] = number_format($item['price'], 2, '.', '');
+        unset($item['wc_line_total']); // Remove our tracking field
+    }
+    unset($item); // Break reference
 
 // Create invoice with just the first line item
 $first_line_item = array_shift($line_items);
@@ -640,6 +680,84 @@ $body = array(
                 }
             }
         }
+    }
+
+    // Post-creation total verification and correction
+    error_log('woo_inv_to_rs: Starting post-creation total verification for Invoice ID: ' . $invoice_id);
+    
+    // Fetch the created invoice to verify totals
+    $verification_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id;
+    $verification_response = wp_remote_get($verification_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+            'Accept' => 'application/json'
+        )
+    ));
+    
+    if (!is_wp_error($verification_response)) {
+        $verification_body = wp_remote_retrieve_body($verification_response);
+        $verification_data = json_decode($verification_body, true);
+        
+        if (isset($verification_data['invoice'])) {
+            $rs_invoice = $verification_data['invoice'];
+            $rs_total = floatval($rs_invoice['total']);
+            $rs_subtotal = floatval($rs_invoice['subtotal']);
+            $rs_tax = floatval($rs_invoice['tax']);
+            
+            error_log('woo_inv_to_rs: Total Verification - WC Total: ' . $wc_total . ', RS Total: ' . $rs_total . ', Difference: ' . ($wc_total - $rs_total));
+            error_log('woo_inv_to_rs: Subtotal Verification - WC Subtotal+Fees: ' . ($wc_subtotal + $wc_fees_total) . ', RS Subtotal: ' . $rs_subtotal);
+            error_log('woo_inv_to_rs: Tax Verification - WC Tax: ' . $wc_total_tax . ', RS Tax: ' . $rs_tax);
+            
+            // Check if totals match exactly
+            $total_difference = abs($wc_total - $rs_total);
+            $tax_difference = abs($wc_total_tax - $rs_tax);
+            
+            if ($total_difference > 0.001 || $tax_difference > 0.001) {
+                error_log('woo_inv_to_rs: Total mismatch detected. Attempting correction...');
+                
+                // Update the invoice with exact WooCommerce totals
+                $correction_body = array(
+                    'subtotal' => number_format($wc_subtotal + $wc_fees_total, 2, '.', ''),
+                    'total' => number_format($wc_total, 2, '.', ''),
+                    'tax' => number_format($wc_total_tax, 2, '.', '')
+                );
+                
+                error_log('woo_inv_to_rs: Applying total correction: ' . json_encode($correction_body));
+                
+                $correction_response = wp_remote_request($verification_url, array(
+                    'method' => 'PUT',
+                    'headers' => array(
+                        'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                        'Content-Type' => 'application/json',
+                        'Accept' => 'application/json'
+                    ),
+                    'body' => json_encode($correction_body)
+                ));
+                
+                if (!is_wp_error($correction_response)) {
+                    $correction_result = wp_remote_retrieve_body($correction_response);
+                    error_log('woo_inv_to_rs: Total correction response: ' . $correction_result);
+                    
+                    $correction_data = json_decode($correction_result, true);
+                    if (isset($correction_data['invoice'])) {
+                        $corrected_total = floatval($correction_data['invoice']['total']);
+                        $final_difference = abs($wc_total - $corrected_total);
+                        
+                        if ($final_difference <= 0.001) {
+                            error_log('woo_inv_to_rs: Total correction successful. Final difference: ' . $final_difference);
+                        } else {
+                            error_log('woo_inv_to_rs: Total correction incomplete. Final difference: ' . $final_difference);
+                        }
+                    }
+                } else {
+                    error_log('woo_inv_to_rs: Total correction failed: ' . $correction_response->get_error_message());
+                }
+            } else {
+                error_log('woo_inv_to_rs: Totals match exactly. No correction needed.');
+            }
+        }
+    } else {
+        error_log('woo_inv_to_rs: Could not verify invoice totals: ' . $verification_response->get_error_message());
     }
 
     error_log('RepairShopr Invoice created successfully with all line items. Invoice ID: ' . $invoice_id);
@@ -860,9 +978,12 @@ if ($api_key) {
             return;
         }
 
-        // Prepare payment data - use exact WooCommerce total
-        $amount_cents = intval(round($order->get_total() * 100));
-        $payment_amount = $amount_cents / 100; // Use the same precision as amount_cents
+        // Prepare payment data - use exact WooCommerce total with precision handling
+        $wc_total = $order->get_total();
+        $amount_cents = intval(round($wc_total * 100));
+        $payment_amount = number_format($wc_total, 2, '.', ''); // Use WooCommerce total directly
+        
+        error_log('woo_inv_to_rs: Payment Amount Precision - WC Total: ' . $wc_total . ', Amount Cents: ' . $amount_cents . ', Payment Amount: ' . $payment_amount);
         $address_street = $order->get_billing_address_1();
         $address_city = $order->get_billing_city();
         $address_zip = $order->get_billing_postcode();
