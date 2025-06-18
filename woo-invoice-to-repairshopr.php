@@ -530,6 +530,22 @@ $body = array(
         }
 
         foreach ($line_items as $li) {
+            // Check if this is an Electronic Payment Fee BEFORE modifying the line item data
+            $epf_name = trim(get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee'));
+            $epf_product_id = trim(get_option('woo_inv_to_rs_epf_product_id', '9263351'));
+            $is_epf = (
+                isset($li['product_id']) && $li['product_id'] == $epf_product_id &&
+                isset($li['item']) && $li['item'] == $epf_name
+            );
+            
+            error_log('woo_inv_to_rs: Processing line item - EPF Name: "' . $epf_name . '", EPF Product ID: "' . $epf_product_id . '", Is EPF: ' . ($is_epf ? 'true' : 'false'));
+            if (isset($li['item'])) {
+                error_log('woo_inv_to_rs: Line item name: "' . $li['item'] . '"');
+            }
+            if (isset($li['product_id'])) {
+                error_log('woo_inv_to_rs: Line item product_id: "' . $li['product_id'] . '"');
+            }
+            
             // If product_id is set, do not send 'item' or 'name' (RepairShopr will use the product)
             if (!empty($li['product_id'])) {
                 $li_body = array(
@@ -570,19 +586,15 @@ $body = array(
                 error_log('Failed to add line item to invoice ' . $invoice_id . ': ' . $li_response->get_error_message());
             } else {
                 // Special handling for Electronic Payment Fee: update price with PUT if needed
-                $epf_name = trim(get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee'));
-                $epf_product_id = trim(get_option('woo_inv_to_rs_epf_product_id', '9263351'));
-                $is_epf = (
-                    isset($li['product_id']) && $li['product_id'] == $epf_product_id &&
-                    isset($li['item']) && $li['item'] == $epf_name
-                );
                 $li_response_data = json_decode($li_response_body, true);
                 if ($is_epf && isset($li_response_data['line_item']['id'])) {
                     $line_item_id = $li_response_data['line_item']['id'];
+                    $epf_price = isset($li['price']) ? floatval($li['price']) : 0.0;
                     $update_line_item = array(
-                        'price' => isset($li['price']) ? floatval($li['price']) : 0.0
+                        'price' => $epf_price
                     );
                     $update_url = rtrim($line_item_url, '/') . '/' . $line_item_id;
+                    error_log('woo_inv_to_rs: Electronic Payment Fee detected - updating price to: ' . $epf_price);
                     error_log('RepairShopr API Request (Update Fee Line Item): ' . json_encode($update_line_item));
                     $update_response = wp_remote_request($update_url, array(
                         'method' => 'PUT',
@@ -600,11 +612,14 @@ $body = array(
                     } else {
                         $update_data = json_decode($update_body, true);
                         if (isset($update_data['line_item'])) {
+                            error_log('woo_inv_to_rs: Electronic Payment Fee line item successfully updated with price: ' . $epf_price);
                             error_log('RepairShopr Line Item Updated: ' . json_encode($update_data['line_item']));
                         } else {
-                            error_log('RepairShopr Line Item Update Failed. Response: ' . $update_body);
+                            error_log('woo_inv_to_rs: Electronic Payment Fee line item update failed. Response: ' . $update_body);
                         }
                     }
+                } elseif ($is_epf) {
+                    error_log('woo_inv_to_rs: Electronic Payment Fee detected but could not get line_item ID from response');
                 }
             }
         }
