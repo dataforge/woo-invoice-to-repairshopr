@@ -399,6 +399,7 @@ function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
 
     // Build line_items array from order items
     $line_items = array();
+    $calculated_subtotal = 0;
 
 foreach ($order->get_items() as $item) {
     $product = $item->get_product();
@@ -420,6 +421,8 @@ foreach ($order->get_items() as $item) {
         'discount_percent' => 0,
         'taxable' => $taxable_flag
     );
+    
+    $calculated_subtotal += (float)$price * (int)$quantity;
 }
 
     // Add Electronic Payment Fee as a line item if present
@@ -446,8 +449,25 @@ if ($epf_name !== '' && $epf_product_id !== '') {
                 'upc_code' => '',
                 'tax_note' => ''
             );
+            $calculated_subtotal += (float)$fee_total_formatted;
             break;
         }
+    }
+}
+
+// Ensure the calculated subtotal matches WooCommerce subtotal exactly
+$wc_subtotal = floatval($order->get_subtotal());
+$subtotal_difference = $wc_subtotal - $calculated_subtotal;
+
+// If there's a difference, adjust the last line item's price
+if (abs($subtotal_difference) > 0.001 && !empty($line_items)) {
+    $last_item_index = count($line_items) - 1;
+    $last_item = &$line_items[$last_item_index];
+    $quantity = (int)$last_item['quantity'];
+    if ($quantity > 0) {
+        $adjusted_price = (float)$last_item['price'] + ($subtotal_difference / $quantity);
+        $last_item['price'] = number_format($adjusted_price, 2, '.', '');
+        error_log('woo_inv_to_rs: Adjusted last line item price by ' . number_format($subtotal_difference, 2, '.', '') . ' to ensure total matches. New price: ' . $last_item['price']);
     }
 }
 
@@ -808,7 +828,7 @@ if ($api_key) {
             return;
         }
 
-        // Prepare payment data
+        // Prepare payment data - use exact WooCommerce total
         $amount_cents = intval(round($order->get_total() * 100));
         $payment_amount = $amount_cents / 100; // Use the same precision as amount_cents
         $address_street = $order->get_billing_address_1();
@@ -1056,19 +1076,23 @@ function woo_inv_to_rs_ajax_verify_invoice() {
 
     error_log('woo_inv_to_rs: WooCommerce Total: ' . $woocommerce_total . ', RepairShopr Total: ' . $repairshopr_total);
 
-    if (abs($woocommerce_total - $repairshopr_total) < 0.01) { // Compare with a small tolerance for float precision
+    $difference = abs($woocommerce_total - $repairshopr_total);
+    
+    if ($difference == 0) { // Exact match only
         wp_send_json_success(array(
             'message' => 'Totals Match!',
             'match' => true,
             'woocommerce_total' => $woocommerce_total,
-            'repairshopr_total' => $repairshopr_total
+            'repairshopr_total' => $repairshopr_total,
+            'difference' => $difference
         ));
     } else {
         wp_send_json_success(array(
-            'message' => 'Totals Mismatch!',
+            'message' => sprintf('Totals Mismatch! Difference: $%.2f', $difference),
             'match' => false,
             'woocommerce_total' => $woocommerce_total,
-            'repairshopr_total' => $repairshopr_total
+            'repairshopr_total' => $repairshopr_total,
+            'difference' => $difference
         ));
     }
 }
