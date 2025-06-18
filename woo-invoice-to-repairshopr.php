@@ -810,6 +810,7 @@ if ($api_key) {
 
         // Prepare payment data
         $amount_cents = intval(round($order->get_total() * 100));
+        $payment_amount = $amount_cents / 100; // Use the same precision as amount_cents
         $address_street = $order->get_billing_address_1();
         $address_city = $order->get_billing_city();
         $address_zip = $order->get_billing_postcode();
@@ -869,7 +870,7 @@ $pm_url = $api_base . '/payment_methods';
             'lastname' => $order->get_billing_last_name(),
             'firstname' => $order->get_billing_first_name(),
             'apply_payments' => array(
-                strval($invoice_id) => floatval($order->get_total())
+                strval($invoice_id) => $payment_amount
             )
         );
 
