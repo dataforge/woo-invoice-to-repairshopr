@@ -151,7 +151,7 @@
                                 style: { marginLeft: '8px' },
                                 'data-order-id': order.id,
                                 onClick: (event) => {
-                                    // Use AJAX to trigger the PHP handler for verification
+                                    // Use AJAX to trigger the PHP handler for invoice verification
                                     if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
                                         const button = event.target;
                                         button.disabled = true;
@@ -170,50 +170,115 @@
                                         })
                                             .then((res) => res.json())
                                             .then((response) => {
-                                                console.log('RepairShopr Verify API Response:', response); // Add console log for debugging
+                                                console.log('RepairShopr Invoice Verify API Response:', response);
                                                 if (response.success) {
                                                     if (response.data && response.data.match) {
-                                                        button.textContent = '$ Match';
+                                                        button.textContent = 'Match';
                                                         button.style.backgroundColor = 'green';
-                                                        button.style.color = 'white'; // Ensure text is readable
+                                                        button.style.color = 'white';
                                                         button.classList.remove('is-secondary');
                                                     } else if (response.data && response.data.match === false) {
-                                                        button.textContent = '$ Mismatch';
+                                                        button.textContent = 'Mismatch';
                                                         button.style.backgroundColor = 'red';
-                                                        button.style.color = 'white'; // Ensure text is readable
+                                                        button.style.color = 'white';
                                                         button.classList.remove('is-secondary');
                                                     } else {
-                                                        // Fallback for unexpected success response structure
                                                         button.textContent = 'Error (Unexpected)';
-                                                        button.style.backgroundColor = ''; // Reset background
-                                                        button.style.color = ''; // Reset color
+                                                        button.style.backgroundColor = '';
+                                                        button.style.color = '';
                                                         button.classList.add('is-secondary');
                                                         alert('Error: Unexpected response structure. ' + (response.data && response.data.message ? response.data.message : ''));
                                                     }
                                                 } else {
                                                     button.textContent = 'Error';
-                                                    button.style.backgroundColor = ''; // Reset background
-                                                    button.style.color = ''; // Reset color
+                                                    button.style.backgroundColor = '';
+                                                    button.style.color = '';
                                                     button.classList.add('is-secondary');
                                                     alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
                                                 }
                                             })
                                             .catch((err) => {
                                                 button.textContent = 'Error';
-                                                button.style.backgroundColor = ''; // Reset background
-                                                button.style.color = ''; // Reset color
+                                                button.style.backgroundColor = '';
+                                                button.style.color = '';
                                                 button.classList.add('is-secondary');
                                                 alert('An error occurred while verifying the invoice: ' + err.message);
                                             })
                                             .finally(() => {
                                                 button.disabled = false;
-                                                // Reset button to original state after a short delay or on next interaction
-                                                // For now, keep the match/mismatch state. If user wants it to revert, we'd add a timeout.
                                             });
                                     }
                                 }
                             },
-                            '$ Verify'
+                            'RS Verify Invoice'
+                        ),
+                        createElement(
+                            'button',
+                            {
+                                className: 'components-button is-secondary woo_inv_to_rs-verify-payment',
+                                style: { marginLeft: '8px' },
+                                'data-order-id': order.id,
+                                onClick: (event) => {
+                                    // Use AJAX to trigger the PHP handler for payment verification
+                                    if (window.woo_inv_to_rs_ajax && window.woo_inv_to_rs_ajax.ajax_url) {
+                                        const button = event.target;
+                                        button.disabled = true;
+                                        button.textContent = 'Verifying...';
+                                        fetch(window.woo_inv_to_rs_ajax.ajax_url, {
+                                            method: 'POST',
+                                            credentials: 'same-origin',
+                                            headers: {
+                                                'Content-Type': 'application/x-www-form-urlencoded',
+                                            },
+                                            body: new URLSearchParams({
+                                                action: 'woo_inv_to_rs_verify_payment',
+                                                order_id: order.id,
+                                                nonce: window.woo_inv_to_rs_ajax ? window.woo_inv_to_rs_ajax.nonce : '',
+                                            }),
+                                        })
+                                            .then((res) => res.json())
+                                            .then((response) => {
+                                                console.log('RepairShopr Payment Verify API Response:', response);
+                                                if (response.success) {
+                                                    if (response.data && response.data.paid) {
+                                                        button.textContent = 'Paid';
+                                                        button.style.backgroundColor = 'green';
+                                                        button.style.color = 'white';
+                                                        button.classList.remove('is-secondary');
+                                                    } else if (response.data && response.data.paid === false) {
+                                                        button.textContent = 'Unpaid';
+                                                        button.style.backgroundColor = 'red';
+                                                        button.style.color = 'white';
+                                                        button.classList.remove('is-secondary');
+                                                    } else {
+                                                        button.textContent = 'Error (Unexpected)';
+                                                        button.style.backgroundColor = '';
+                                                        button.style.color = '';
+                                                        button.classList.add('is-secondary');
+                                                        alert('Error: Unexpected response structure. ' + (response.data && response.data.message ? response.data.message : ''));
+                                                    }
+                                                } else {
+                                                    button.textContent = 'Error';
+                                                    button.style.backgroundColor = '';
+                                                    button.style.color = '';
+                                                    button.classList.add('is-secondary');
+                                                    alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                                }
+                                            })
+                                            .catch((err) => {
+                                                button.textContent = 'Error';
+                                                button.style.backgroundColor = '';
+                                                button.style.color = '';
+                                                button.classList.add('is-secondary');
+                                                alert('An error occurred while verifying the payment: ' + err.message);
+                                            })
+                                            .finally(() => {
+                                                button.disabled = false;
+                                            });
+                                    }
+                                }
+                            },
+                            'RS Verify Payment'
                         )
                     );
         }

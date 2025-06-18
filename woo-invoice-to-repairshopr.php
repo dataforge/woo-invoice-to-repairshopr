@@ -478,7 +478,8 @@ function woo_inv_to_rs_order_repairshopr_column_content($column, $post_id) {
         error_log('woo_inv_to_rs: rendering Send Invoice and Send Payment buttons for order ' . $post_id);
         echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($post_id) . '">Send Invoice</button> ';
         echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($post_id) . '">Send Payment</button> ';
-        echo '<button type="button" class="button woo_inv_to_rs-verify-invoice" data-order-id="' . esc_attr($post_id) . '">$ Verify</button>';
+        echo '<button type="button" class="button woo_inv_to_rs-verify-invoice" data-order-id="' . esc_attr($post_id) . '">RS Verify Invoice</button> ';
+        echo '<button type="button" class="button woo_inv_to_rs-verify-payment" data-order-id="' . esc_attr($post_id) . '">RS Verify Payment</button>';
     }
 }
 
@@ -503,7 +504,8 @@ function woo_inv_to_rs_hpos_order_repairshopr_column_content($column, $order) {
         if ($order_id) {
             echo '<button type="button" class="button woo_inv_to_rs-send-to-repairshopr" data-order-id="' . esc_attr($order_id) . '">Send Invoice</button> ';
             echo '<button type="button" class="button woo_inv_to_rs-send-payment" data-order-id="' . esc_attr($order_id) . '">Send Payment</button> ';
-            echo '<button type="button" class="button woo_inv_to_rs-verify-invoice" data-order-id="' . esc_attr($order_id) . '">$ Verify</button>';
+            echo '<button type="button" class="button woo_inv_to_rs-verify-invoice" data-order-id="' . esc_attr($order_id) . '">RS Verify Invoice</button> ';
+            echo '<button type="button" class="button woo_inv_to_rs-verify-payment" data-order-id="' . esc_attr($order_id) . '">RS Verify Payment</button>';
         }
     }
 }
@@ -555,6 +557,7 @@ add_action('admin_enqueue_scripts', 'woo_inv_to_rs_enqueue_admin_scripts');
 add_action('wp_ajax_woo_inv_to_rs_send_to_repairshopr', 'woo_inv_to_rs_ajax_send_to_repairshopr');
 add_action('wp_ajax_woo_inv_to_rs_send_payment_to_repairshopr', 'woo_inv_to_rs_ajax_send_payment_to_repairshopr');
 add_action('wp_ajax_woo_inv_to_rs_verify_invoice', 'woo_inv_to_rs_ajax_verify_invoice');
+add_action('wp_ajax_woo_inv_to_rs_verify_payment', 'woo_inv_to_rs_ajax_verify_payment');
 
 function woo_inv_to_rs_ajax_send_payment_to_repairshopr() {
     error_log('woo_inv_to_rs: AJAX handler for Send Payment triggered');
@@ -914,6 +917,132 @@ function woo_inv_to_rs_ajax_verify_invoice() {
             'match' => false,
             'woocommerce_total' => $woocommerce_total,
             'repairshopr_total' => $repairshopr_total
+        ));
+    }
+}
+
+function woo_inv_to_rs_ajax_verify_payment() {
+    error_log('woo_inv_to_rs: AJAX handler for Verify Payment triggered');
+
+    if (!current_user_can('edit_shop_orders') || !check_ajax_referer('woo_inv_to_rs_nonce', 'nonce', false)) {
+        error_log('woo_inv_to_rs: Permission check failed (Verify Payment)');
+        wp_send_json_error(array('message' => 'Permission denied'));
+        return;
+    }
+
+    $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
+    error_log('woo_inv_to_rs: Order ID (Verify Payment): ' . $order_id);
+
+    if ($order_id <= 0) {
+        error_log('woo_inv_to_rs: Invalid order ID (Verify Payment)');
+        wp_send_json_error(array('message' => 'Invalid order ID'));
+        return;
+    }
+
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        error_log('woo_inv_to_rs: Order not found (Verify Payment)');
+        wp_send_json_error(array('message' => 'Order not found'));
+        return;
+    }
+
+    $api_base = get_option('woo_inv_to_rs_api_url', '');
+    $api_key = woo_inv_to_rs_get_api_key();
+    $invoice_prefix = get_option('woo_inv_to_rs_invoice_prefix', '');
+
+    if (empty($api_base) || empty($api_key)) {
+        error_log('woo_inv_to_rs: RepairShopr API URL or API Key not configured.');
+        wp_send_json_error(array('message' => 'RepairShopr API URL or API Key not configured.'));
+        return;
+    }
+
+    $invoice_number = $invoice_prefix . $order->get_order_number();
+    $invoice_api_url = rtrim($api_base, '/') . '/invoices/' . urlencode($invoice_number);
+
+    error_log('woo_inv_to_rs: Fetching RepairShopr invoice for payment verification from: ' . $invoice_api_url);
+
+    $response = wp_remote_get($invoice_api_url, array(
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $api_key,
+            'Accept' => 'application/json'
+        )
+    ));
+
+    if (is_wp_error($response)) {
+        error_log('woo_inv_to_rs: Error fetching RepairShopr invoice for payment verification: ' . $response->get_error_message());
+        wp_send_json_error(array('message' => 'Error fetching RepairShopr invoice: ' . $response->get_error_message()));
+        return;
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (empty($data['invoice'])) {
+        error_log('woo_inv_to_rs: RepairShopr invoice not found for payment verification. Invoice number: ' . $invoice_number);
+        wp_send_json_error(array(
+            'message' => sprintf(
+                'RepairShopr Invoice %s not found.',
+                esc_html($invoice_number)
+            )
+        ));
+        return;
+    }
+
+    $invoice = $data['invoice'];
+    $is_paid = isset($invoice['is_paid']) ? $invoice['is_paid'] : false;
+    $balance_due = isset($invoice['balance_due']) ? $invoice['balance_due'] : null;
+    $payments = isset($invoice['payments']) ? $invoice['payments'] : array();
+
+    error_log('woo_inv_to_rs: RepairShopr Invoice Payment Status - is_paid: ' . ($is_paid ? 'true' : 'false') . ', balance_due: ' . $balance_due . ', payments count: ' . count($payments));
+
+    // Check if invoice is paid based on multiple criteria
+    $payment_verified = false;
+    $payment_details = array();
+
+    // Primary check: is_paid flag should be true
+    if ($is_paid === true) {
+        $payment_verified = true;
+        $payment_details['is_paid'] = true;
+    }
+
+    // Secondary check: balance_due should be "0.0" or 0
+    if ($balance_due !== null && (floatval($balance_due) === 0.0 || $balance_due === "0.0" || $balance_due === "0")) {
+        $payment_details['balance_due_zero'] = true;
+        if (!$payment_verified) {
+            $payment_verified = true; // Consider paid if balance is zero even if is_paid is false
+        }
+    } else {
+        $payment_details['balance_due_zero'] = false;
+    }
+
+    // Additional check: verify payments array has entries
+    if (!empty($payments)) {
+        $total_payment_amount = 0;
+        foreach ($payments as $payment) {
+            if (isset($payment['payment_amount'])) {
+                $total_payment_amount += floatval($payment['payment_amount']);
+            }
+        }
+        $payment_details['payments_exist'] = true;
+        $payment_details['total_payment_amount'] = $total_payment_amount;
+        $payment_details['payments_count'] = count($payments);
+    } else {
+        $payment_details['payments_exist'] = false;
+        $payment_details['total_payment_amount'] = 0;
+        $payment_details['payments_count'] = 0;
+    }
+
+    if ($payment_verified) {
+        wp_send_json_success(array(
+            'message' => 'Invoice is Paid!',
+            'paid' => true,
+            'details' => $payment_details
+        ));
+    } else {
+        wp_send_json_success(array(
+            'message' => 'Invoice is Unpaid!',
+            'paid' => false,
+            'details' => $payment_details
         ));
     }
 }

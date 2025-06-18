@@ -101,7 +101,7 @@ jQuery(document).ready(function($) {
         return false;
     });
 
-    // Handler for $ Verify button (legacy orders page)
+    // Handler for RS Verify Invoice button (legacy orders page)
     $(document).on('click', '.woo_inv_to_rs-verify-invoice', function(e) {
         console.log('woo_inv_to_rs: CLICK HANDLER TRIGGERED for .woo_inv_to_rs-verify-invoice');
         e.preventDefault();
@@ -110,7 +110,7 @@ jQuery(document).ready(function($) {
         var button = $(this);
         var orderId = button.data('order-id');
 
-        console.log('woo_inv_to_rs: $ Verify button clicked for order ID:', orderId);
+        console.log('woo_inv_to_rs: RS Verify Invoice button clicked for order ID:', orderId);
 
         button.prop('disabled', true).text('Verifying...');
 
@@ -123,36 +123,97 @@ jQuery(document).ready(function($) {
                 nonce: woo_inv_to_rs_ajax.nonce
             },
             beforeSend: function() {
-                console.log('woo_inv_to_rs: Sending AJAX request for verification');
+                console.log('woo_inv_to_rs: Sending AJAX request for invoice verification');
             },
-success: function(response) {
-                console.log('woo_inv_to_rs: AJAX response received (verification):', response);
+            success: function(response) {
+                console.log('woo_inv_to_rs: AJAX response received (invoice verification):', response);
                 if (response.success) {
                     // Remove previous color classes and inline styles
                     button.removeClass('button-primary button-secondary')
                           .css('background-color', '')
                           .css('color', '');
                     if (response.data && response.data.match) {
-                        button.text('$ Match')
+                        button.text('Match')
                               .css('background-color', 'green')
                               .css('color', 'white');
                     } else {
-                        button.text('$ Mismatch')
+                        button.text('Mismatch')
                               .css('background-color', 'red')
                               .css('color', 'white');
                     }
                 } else {
                     button.text('Error').addClass('button-secondary');
                     var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
-                    console.error('woo_inv_to_rs: Error message (verification):', msg);
+                    console.error('woo_inv_to_rs: Error message (invoice verification):', msg);
                     alert('Error: ' + msg + '\nPlease check the error logs for more details.');
                 }
             },
             error: function(jqXHR, textStatus, errorThrown) {
-                console.error('woo_inv_to_rs: AJAX error (verification):', textStatus, errorThrown);
-                console.log('woo_inv_to_rs: Full error object (verification):', jqXHR);
+                console.error('woo_inv_to_rs: AJAX error (invoice verification):', textStatus, errorThrown);
+                console.log('woo_inv_to_rs: Full error object (invoice verification):', jqXHR);
                 button.text('Error').addClass('button-secondary');
                 alert('An error occurred while verifying the invoice. Please check the error logs for more details.');
+            },
+            complete: function() {
+                button.prop('disabled', false);
+            }
+        });
+
+        return false;
+    });
+
+    // Handler for RS Verify Payment button (legacy orders page)
+    $(document).on('click', '.woo_inv_to_rs-verify-payment', function(e) {
+        console.log('woo_inv_to_rs: CLICK HANDLER TRIGGERED for .woo_inv_to_rs-verify-payment');
+        e.preventDefault();
+        e.stopPropagation();
+
+        var button = $(this);
+        var orderId = button.data('order-id');
+
+        console.log('woo_inv_to_rs: RS Verify Payment button clicked for order ID:', orderId);
+
+        button.prop('disabled', true).text('Verifying...');
+
+        $.ajax({
+            url: woo_inv_to_rs_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'woo_inv_to_rs_verify_payment',
+                order_id: orderId,
+                nonce: woo_inv_to_rs_ajax.nonce
+            },
+            beforeSend: function() {
+                console.log('woo_inv_to_rs: Sending AJAX request for payment verification');
+            },
+            success: function(response) {
+                console.log('woo_inv_to_rs: AJAX response received (payment verification):', response);
+                if (response.success) {
+                    // Remove previous color classes and inline styles
+                    button.removeClass('button-primary button-secondary')
+                          .css('background-color', '')
+                          .css('color', '');
+                    if (response.data && response.data.paid) {
+                        button.text('Paid')
+                              .css('background-color', 'green')
+                              .css('color', 'white');
+                    } else {
+                        button.text('Unpaid')
+                              .css('background-color', 'red')
+                              .css('color', 'white');
+                    }
+                } else {
+                    button.text('Error').addClass('button-secondary');
+                    var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
+                    console.error('woo_inv_to_rs: Error message (payment verification):', msg);
+                    alert('Error: ' + msg + '\nPlease check the error logs for more details.');
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('woo_inv_to_rs: AJAX error (payment verification):', textStatus, errorThrown);
+                console.log('woo_inv_to_rs: Full error object (payment verification):', jqXHR);
+                button.text('Error').addClass('button-secondary');
+                alert('An error occurred while verifying the payment. Please check the error logs for more details.');
             },
             complete: function() {
                 button.prop('disabled', false);
