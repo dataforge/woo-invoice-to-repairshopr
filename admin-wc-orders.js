@@ -173,12 +173,12 @@
                                                 console.log('RepairShopr Invoice Verify API Response:', response);
                                                 if (response.success) {
                                                     if (response.data && response.data.match) {
-                                                        button.textContent = 'Match';
+                                                        button.textContent = 'RS Invoice Matched';
                                                         button.style.backgroundColor = 'green';
                                                         button.style.color = 'white';
                                                         button.classList.remove('is-secondary');
                                                     } else if (response.data && response.data.match === false) {
-                                                        button.textContent = 'Mismatch';
+                                                        button.textContent = 'RS Invoice Mismatch';
                                                         button.style.backgroundColor = 'red';
                                                         button.style.color = 'white';
                                                         button.classList.remove('is-secondary');
@@ -241,12 +241,12 @@
                                                 console.log('RepairShopr Payment Verify API Response:', response);
                                                 if (response.success) {
                                                     if (response.data && response.data.paid) {
-                                                        button.textContent = 'Paid';
+                                                        button.textContent = 'RS Payment Matched';
                                                         button.style.backgroundColor = 'green';
                                                         button.style.color = 'white';
                                                         button.classList.remove('is-secondary');
                                                     } else if (response.data && response.data.paid === false) {
-                                                        button.textContent = 'Unpaid';
+                                                        button.textContent = 'RS Payment Unpaid';
                                                         button.style.backgroundColor = 'red';
                                                         button.style.color = 'white';
                                                         button.classList.remove('is-secondary');

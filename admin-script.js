@@ -54,7 +54,6 @@ jQuery(document).ready(function($) {
     // Handler for Send Payment button (legacy orders page)
     $(document).on('click', '.woo_inv_to_rs-send-payment', function(e) {
         console.log('woo_inv_to_rs: CLICK HANDLER TRIGGERED for .woo_inv_to_rs-send-payment');
-        alert('Send Payment JS handler triggered');
         e.preventDefault();
         e.stopPropagation();
 
@@ -133,11 +132,11 @@ jQuery(document).ready(function($) {
                           .css('background-color', '')
                           .css('color', '');
                     if (response.data && response.data.match) {
-                        button.text('Match')
+                        button.text('RS Invoice Matched')
                               .css('background-color', 'green')
                               .css('color', 'white');
                     } else {
-                        button.text('Mismatch')
+                        button.text('RS Invoice Mismatch')
                               .css('background-color', 'red')
                               .css('color', 'white');
                     }
@@ -194,11 +193,11 @@ jQuery(document).ready(function($) {
                           .css('background-color', '')
                           .css('color', '');
                     if (response.data && response.data.paid) {
-                        button.text('Paid')
+                        button.text('RS Payment Matched')
                               .css('background-color', 'green')
                               .css('color', 'white');
                     } else {
-                        button.text('Unpaid')
+                        button.text('RS Payment Unpaid')
                               .css('background-color', 'red')
                               .css('color', 'white');
                     }
