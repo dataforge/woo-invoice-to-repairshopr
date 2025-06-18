@@ -727,7 +727,7 @@ $body = array(
                         'line_discount_percent' => 0,
                         'discount_dollars' => '0',
                         'product_id' => $rounding_correction_product_id,
-                        'price' => number_format($rounded_difference, 2, '.', ''), // Format as string with 2 decimal places
+                        'price' => $rounded_difference, // Send as float like other line items
                         'cost' => 0,
                         'quantity' => 1,
                         'taxable' => false // Rounding corrections should not be taxable
@@ -749,8 +749,45 @@ $body = array(
                         error_log('woo_inv_to_rs: Rounding correction line item added: ' . $rounding_result);
                         
                         $rounding_data = json_decode($rounding_result, true);
-                        if (isset($rounding_data['line_item'])) {
+                        if (isset($rounding_data['line_item']['id'])) {
+                            $rounding_line_item_id = $rounding_data['line_item']['id'];
+                            
+                            // Update the rounding correction price with PUT request (same approach as EPF)
+                            $update_rounding_item = array(
+                                'price' => $rounded_difference
+                            );
+                            $update_rounding_url = rtrim($line_item_url, '/') . '/' . $rounding_line_item_id;
+                            error_log('woo_inv_to_rs: Rounding correction detected - updating price to: ' . $rounded_difference);
+                            error_log('RepairShopr API Request (Update Rounding Line Item): ' . json_encode($update_rounding_item));
+                            
+                            $update_rounding_response = wp_remote_request($update_rounding_url, array(
+                                'method' => 'PUT',
+                                'headers' => array(
+                                    'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                                    'Content-Type' => 'application/json',
+                                    'Accept' => 'application/json'
+                                ),
+                                'body' => json_encode($update_rounding_item)
+                            ));
+                            
+                            $update_rounding_body = wp_remote_retrieve_body($update_rounding_response);
+                            error_log('RepairShopr API Response (Update Rounding Line Item): ' . $update_rounding_body);
+                            
+                            if (is_wp_error($update_rounding_response)) {
+                                error_log('RepairShopr API Error (Update Rounding Line Item): ' . $update_rounding_response->get_error_message());
+                            } else {
+                                $update_rounding_data = json_decode($update_rounding_body, true);
+                                if (isset($update_rounding_data['line_item'])) {
+                                    error_log('woo_inv_to_rs: Rounding correction line item successfully updated with price: ' . $rounded_difference);
+                                    error_log('RepairShopr Rounding Line Item Updated: ' . json_encode($update_rounding_data['line_item']));
+                                } else {
+                                    error_log('woo_inv_to_rs: Rounding correction line item update failed. Response: ' . $update_rounding_body);
+                                }
+                            }
+                            
                             error_log('woo_inv_to_rs: Rounding correction successfully applied. Amount: ' . $total_difference);
+                        } else {
+                            error_log('woo_inv_to_rs: Rounding correction detected but could not get line_item ID from response');
                         }
                     } else {
                         error_log('woo_inv_to_rs: Failed to add rounding correction line item: ' . $rounding_response->get_error_message());
