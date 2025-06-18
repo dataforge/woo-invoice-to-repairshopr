@@ -80,7 +80,14 @@
                                                 } else {
                                                     button.textContent = 'Error';
                                                     button.classList.add('is-secondary');
-                                                    alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                                    var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
+                                                    
+                                                    // Show specific message for payment duplicates
+                                                    if (msg.includes('Payment already exists')) {
+                                                        alert('Payment Duplicate: This invoice has already been marked as paid in RepairShopr.');
+                                                    } else {
+                                                        alert('Error: ' + msg);
+                                                    }
                                                 }
                                             })
                                             .catch((err) => {
@@ -128,7 +135,14 @@
                                                 } else {
                                                     button.textContent = 'Error';
                                                     button.classList.add('is-secondary');
-                                                    alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                                                    var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
+                                                    
+                                                    // Show specific message for payment duplicates
+                                                    if (msg.includes('Payment already exists')) {
+                                                        alert('Payment Duplicate: This invoice has already been marked as paid in RepairShopr.');
+                                                    } else {
+                                                        alert('Error: ' + msg);
+                                                    }
                                                 }
                                             })
                                             .catch((err) => {

@@ -83,7 +83,13 @@ jQuery(document).ready(function($) {
                     button.text('Error').addClass('button-secondary');
                     var msg = response.data && response.data.message ? response.data.message : 'Unknown error';
                     console.error('woo_inv_to_rs: Error message (payment):', msg);
-                    alert('Error: ' + msg + '\nPlease check the error logs for more details.');
+                    
+                    // Show specific message for payment duplicates
+                    if (msg.includes('Payment already exists')) {
+                        alert('Payment Duplicate: This invoice has already been marked as paid in RepairShopr.');
+                    } else {
+                        alert('Error: ' + msg + '\nPlease check the error logs for more details.');
+                    }
                 }
             },
             error: function(jqXHR, textStatus, errorThrown) {
