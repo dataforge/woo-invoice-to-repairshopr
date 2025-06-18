@@ -590,6 +590,23 @@ $body = array(
                 if ($is_epf && isset($li_response_data['line_item']['id'])) {
                     $line_item_id = $li_response_data['line_item']['id'];
                     $epf_price = isset($li['price']) ? floatval($li['price']) : 0.0;
+                    
+                    // Debug: Log the original line item data to see what price we have
+                    error_log('woo_inv_to_rs: EPF Line Item Debug - Original $li array: ' . json_encode($li));
+                    error_log('woo_inv_to_rs: EPF Line Item Debug - Extracted price: ' . $epf_price);
+                    
+                    // If price is 0, try to get the fee amount directly from the order
+                    if ($epf_price == 0.0) {
+                        error_log('woo_inv_to_rs: EPF price is 0, attempting to get fee amount directly from order');
+                        foreach ($order->get_fees() as $fee) {
+                            if ($fee->get_name() == $epf_name) {
+                                $epf_price = floatval($fee->get_total());
+                                error_log('woo_inv_to_rs: Found EPF in order fees with amount: ' . $epf_price);
+                                break;
+                            }
+                        }
+                    }
+                    
                     $update_line_item = array(
                         'price' => $epf_price
                     );
