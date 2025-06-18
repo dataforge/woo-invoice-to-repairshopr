@@ -112,7 +112,8 @@ function woo_inv_to_rs_get_repairshopr_customer($email) {
     } else {
         $base_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
     }
-    $api_url = $base_url . '?email=' . urlencode($email);
+    // Convert email to lowercase to match RepairShopr's email normalization
+    $api_url = $base_url . '?email=' . urlencode(strtolower($email));
 
     // Log the API request URL
     error_log('RepairShopr Get Customer API Request URL: ' . $api_url);
@@ -182,7 +183,7 @@ function woo_inv_to_rs_create_repairshopr_customer($order) {
     $lastname = $billing_lastname ?: $shipping_lastname;
     $fullname = $billing_fullname ?: $shipping_fullname;
     $business_name = $billing_company ?: $shipping_company;
-    $email = $billing_email ?: $shipping_email;
+    $email = strtolower($billing_email ?: $shipping_email); // Convert email to lowercase to match RepairShopr's normalization
     $phone = $billing_phone ?: $shipping_phone;
     $address = $billing_address_1 ?: $shipping_address_1;
     $address_2 = $billing_address_2 ?: $shipping_address_2;
@@ -246,7 +247,14 @@ function woo_inv_to_rs_create_repairshopr_customer($order) {
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    return $data['customer']['id'];
+    // Check if customer creation was successful before accessing the customer ID
+    if (isset($data['customer']['id'])) {
+        return $data['customer']['id'];
+    } else {
+        // Log the error response for debugging
+        error_log('woo_inv_to_rs: RepairShopr Customer Creation Failed: ' . json_encode($data));
+        return false;
+    }
 }
 
 function woo_inv_to_rs_create_repairshopr_invoice($order, $customer_id) {
