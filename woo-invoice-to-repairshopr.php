@@ -715,14 +715,18 @@ $body = array(
             if ($total_difference > 0.001 || $tax_difference > 0.001) {
                 error_log('woo_inv_to_rs: Total mismatch detected. Attempting correction...');
                 
-                // Update the invoice with exact WooCommerce totals
+                // Calculate the required subtotal to achieve the exact WooCommerce total
+                // Formula: Required Subtotal = WC Total - WC Tax
+                $required_subtotal = $wc_total - $wc_total_tax;
+                
+                // Update the invoice with calculated subtotal and exact WooCommerce totals
                 $correction_body = array(
-                    'subtotal' => number_format($wc_subtotal + $wc_fees_total, 2, '.', ''),
+                    'subtotal' => number_format($required_subtotal, 2, '.', ''),
                     'total' => number_format($wc_total, 2, '.', ''),
                     'tax' => number_format($wc_total_tax, 2, '.', '')
                 );
                 
-                error_log('woo_inv_to_rs: Applying total correction: ' . json_encode($correction_body));
+                error_log('woo_inv_to_rs: Applying total correction with calculated subtotal: ' . json_encode($correction_body));
                 
                 $correction_response = wp_remote_request($verification_url, array(
                     'method' => 'PUT',
@@ -741,12 +745,48 @@ $body = array(
                     $correction_data = json_decode($correction_result, true);
                     if (isset($correction_data['invoice'])) {
                         $corrected_total = floatval($correction_data['invoice']['total']);
-                        $final_difference = abs($wc_total - $corrected_total);
+                        $corrected_tax = floatval($correction_data['invoice']['tax']);
+                        $final_total_difference = abs($wc_total - $corrected_total);
+                        $final_tax_difference = abs($wc_total_tax - $corrected_tax);
                         
-                        if ($final_difference <= 0.001) {
-                            error_log('woo_inv_to_rs: Total correction successful. Final difference: ' . $final_difference);
+                        if ($final_total_difference <= 0.001 && $final_tax_difference <= 0.001) {
+                            error_log('woo_inv_to_rs: Total correction successful. Final total difference: ' . $final_total_difference . ', tax difference: ' . $final_tax_difference);
                         } else {
-                            error_log('woo_inv_to_rs: Total correction incomplete. Final difference: ' . $final_difference);
+                            error_log('woo_inv_to_rs: Total correction incomplete. Final total difference: ' . $final_total_difference . ', tax difference: ' . $final_tax_difference);
+                            
+                            // If RepairShopr is still not matching, try a second correction with forced values
+                            $force_correction_body = array(
+                                'subtotal' => number_format($corrected_total - $wc_total_tax, 2, '.', ''),
+                                'total' => number_format($wc_total, 2, '.', ''),
+                                'tax' => number_format($wc_total_tax, 2, '.', ''),
+                                'verified_paid' => (get_option('woo_inv_to_rs_verified_paid', '1') === '1') && $order->is_paid(),
+                                'tech_marked_paid' => (get_option('woo_inv_to_rs_tech_marked_paid', '1') === '1') && $order->is_paid(),
+                                'is_paid' => (get_option('woo_inv_to_rs_is_paid', '1') === '1') && $order->is_paid()
+                            );
+                            
+                            error_log('woo_inv_to_rs: Applying forced total correction: ' . json_encode($force_correction_body));
+                            
+                            $force_response = wp_remote_request($verification_url, array(
+                                'method' => 'PUT',
+                                'headers' => array(
+                                    'Authorization' => 'Bearer ' . woo_inv_to_rs_get_api_key(),
+                                    'Content-Type' => 'application/json',
+                                    'Accept' => 'application/json'
+                                ),
+                                'body' => json_encode($force_correction_body)
+                            ));
+                            
+                            if (!is_wp_error($force_response)) {
+                                $force_result = wp_remote_retrieve_body($force_response);
+                                error_log('woo_inv_to_rs: Forced correction response: ' . $force_result);
+                                
+                                $force_data = json_decode($force_result, true);
+                                if (isset($force_data['invoice'])) {
+                                    $final_corrected_total = floatval($force_data['invoice']['total']);
+                                    $ultimate_difference = abs($wc_total - $final_corrected_total);
+                                    error_log('woo_inv_to_rs: Ultimate correction difference: ' . $ultimate_difference);
+                                }
+                            }
                         }
                     }
                 } else {
