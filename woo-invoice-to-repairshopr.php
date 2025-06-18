@@ -888,7 +888,12 @@ function woo_inv_to_rs_ajax_verify_invoice() {
 
     if (empty($data['invoice']) || !isset($data['invoice']['total'])) {
         error_log('woo_inv_to_rs: RepairShopr invoice not found or total missing for invoice number: ' . $invoice_number);
-        wp_send_json_error(array('message' => 'RepairShopr invoice not found or total missing.'));
+        wp_send_json_error(array(
+            'message' => sprintf(
+                'RepairShopr Invoice %s not found or total missing.',
+                esc_html($invoice_number)
+            )
+        ));
         return;
     }
 
