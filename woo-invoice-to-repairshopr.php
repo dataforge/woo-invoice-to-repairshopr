@@ -703,14 +703,20 @@ $pm_url = $api_base . '/payment_methods';
             'register_id' => 0,
             'signature_name' => '',
             'signature_data' => '',
-'signature_date' => $order->get_date_paid() ? $order->get_date_paid()->format('c') : date('c'),
+            // RepairShopr expects full ISO 8601 with milliseconds and Z suffix, e.g. 2019-10-28T00:00:00.000Z
+            'applied_at'     => $order->get_date_paid()
+                                   ? $order->get_date_paid()->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.000\Z')
+                                   : gmdate('Y-m-d\TH:i:s.000\Z'),
+            'signature_date' => $order->get_date_paid() ? $order->get_date_paid()->format('c') : date('c'),
             'credit_card_number' => '',
             'date_month' => '',
             'date_year' => '',
             'cvv' => '',
             'lastname' => $order->get_billing_last_name(),
             'firstname' => $order->get_billing_first_name(),
-            'apply_payments' => new stdClass()
+            'apply_payments' => array(
+                strval($invoice_id) => floatval($order->get_total())
+            )
         );
 
         // Log the payment payload for debugging
