@@ -716,6 +716,9 @@ $body = array(
                 if (abs($total_difference) > 0.001 && abs($total_difference) <= 0.10) {
                     error_log('woo_inv_to_rs: Rounding difference detected: ' . $total_difference . '. Adding rounding correction line item.');
                     
+                    // Round the difference to exactly 2 decimal places to avoid precision issues
+                    $rounded_difference = round($total_difference, 2);
+                    
                     // Add rounding correction line item
                     $line_item_url = rtrim($api_base, '/') . '/invoices/' . $invoice_id . '/line_items';
                     
@@ -724,7 +727,7 @@ $body = array(
                         'line_discount_percent' => 0,
                         'discount_dollars' => '0',
                         'product_id' => $rounding_correction_product_id,
-                        'price' => number_format($total_difference, 2, '.', ''),
+                        'price' => $rounded_difference, // Send as float, not formatted string
                         'cost' => 0,
                         'quantity' => 1,
                         'taxable' => false // Rounding corrections should not be taxable
