@@ -197,7 +197,6 @@ class WIR_WooCommerce_Integration {
      * @param string $hook Current admin page hook
      */
     public static function enqueue_admin_scripts($hook) {
-        error_log('woo_inv_to_rs: admin_enqueue_scripts called. $hook=' . $hook . ', $_GET[page]=' . (isset($_GET['page']) ? $_GET['page'] : 'NOT SET'));
         
         // Legacy orders page (edit.php?post_type=shop_order) or legacy table on wc-orders page
         if (
