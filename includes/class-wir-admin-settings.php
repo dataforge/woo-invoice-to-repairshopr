@@ -143,9 +143,8 @@ class WIR_Admin_Settings {
             $is_paid = get_option('woo_inv_to_rs_is_paid', '1');
         }
 
-        // Handle "Trigger WP-Cron Plugin Update Check" button
-        if (isset($_POST['woo_inv_to_rs_check_update']) && check_admin_referer('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce')) {
-            self::check_for_updates();
+        if ( isset( $_GET['update_check'] ) ) {
+            echo '<div class="updated"><p>Update check complete. If an update is available it will appear in <a href="' . esc_url( admin_url( 'update-core.php' ) ) . '">Dashboard &rsaquo; Updates</a>.</p></div>';
         }
 
         self::render_settings_form($masked_key, $api_url, $customer_url, $invoice_url, $tax_rate_id, $epf_product_id, $epf_name, $rounding_correction_product_id, $notes, $invoice_note, $get_sms, $opt_out, $no_email, $get_billing, $get_marketing, $get_reports, $taxable, $verified_paid, $tech_marked_paid, $is_paid);
@@ -224,30 +223,6 @@ class WIR_Admin_Settings {
         update_option('woo_inv_to_rs_auto_sync_payment', isset($_POST['woo_inv_to_rs_auto_sync_payment']) ? '1' : '');
         
         echo '<div class="updated"><p>Settings updated.</p></div>';
-    }
-
-    /**
-     * Check for plugin updates
-     */
-    private static function check_for_updates() {
-        do_action('wp_update_plugins');
-        if (function_exists('wp_clean_plugins_cache')) {
-            wp_clean_plugins_cache(true);
-        }
-        delete_site_transient('update_plugins');
-        if (function_exists('wp_update_plugins')) {
-            wp_update_plugins();
-        }
-        $plugin_file = plugin_basename(dirname(dirname(__FILE__)) . '/woo-invoice-to-repairshopr.php');
-        $update_plugins = get_site_transient('update_plugins');
-        $update_msg = '';
-        if (isset($update_plugins->response) && isset($update_plugins->response[$plugin_file])) {
-            $new_version = $update_plugins->response[$plugin_file]->new_version;
-            $update_msg = '<div class="updated"><p>Update available: version ' . esc_html($new_version) . '.</p></div>';
-        } else {
-            $update_msg = '<div class="updated"><p>No update available for this plugin.</p></div>';
-        }
-        echo $update_msg;
     }
 
     /**
@@ -402,10 +377,10 @@ class WIR_Admin_Settings {
                 <input type="hidden" name="woo_inv_to_rs_settings_submit" value="1">
                 <?php submit_button('Save Settings'); ?>
             </form>
-            <form method="post" action="" style="margin-top:2em;">
-                <?php wp_nonce_field('woo_inv_to_rs_settings_nonce', 'woo_inv_to_rs_settings_nonce'); ?>
-                <input type="hidden" name="woo_inv_to_rs_check_update" value="1">
-                <?php submit_button('Check for Plugin Updates', 'secondary'); ?>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2em;">
+                <input type="hidden" name="action" value="wir_check_updates" />
+                <?php wp_nonce_field( 'wir_check_updates' ); ?>
+                <?php submit_button( 'Check for Plugin Updates', 'secondary' ); ?>
             </form>
         </div>
         <?php
