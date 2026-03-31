@@ -143,10 +143,6 @@ class WIR_Admin_Settings {
             $is_paid = get_option('woo_inv_to_rs_is_paid', '1');
         }
 
-        if ( isset( $_GET['update_check'] ) ) {
-            echo '<div class="updated"><p>Update check complete. If an update is available it will appear in <a href="' . esc_url( admin_url( 'update-core.php' ) ) . '">Dashboard &rsaquo; Updates</a>.</p></div>';
-        }
-
         self::render_settings_form($masked_key, $api_url, $customer_url, $invoice_url, $tax_rate_id, $epf_product_id, $epf_name, $rounding_correction_product_id, $notes, $invoice_note, $get_sms, $opt_out, $no_email, $get_billing, $get_marketing, $get_reports, $taxable, $verified_paid, $tech_marked_paid, $is_paid);
     }
 
@@ -377,11 +373,23 @@ class WIR_Admin_Settings {
                 <input type="hidden" name="woo_inv_to_rs_settings_submit" value="1">
                 <?php submit_button('Save Settings'); ?>
             </form>
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:2em;">
-                <input type="hidden" name="action" value="wir_check_updates" />
-                <?php wp_nonce_field( 'wir_check_updates' ); ?>
-                <?php submit_button( 'Check for Plugin Updates', 'secondary' ); ?>
-            </form>
+            <div class="card" style="margin-top:2em;">
+                <h2>Plugin Updates</h2>
+                <p>Current version: <strong>v<?php echo esc_html( WIR_VERSION ); ?></strong>
+                <?php if ( isset( $_GET['update_check'] ) ) : ?>
+                    <?php if ( WIR_Updater::is_update_available() ) : ?>
+                        &mdash; <span style="color:#b32d2e;">Update available!</span> <a href="<?php echo esc_url( admin_url( 'update-core.php' ) ); ?>">Go to Updates</a>
+                    <?php else : ?>
+                        &mdash; <span style="color:#00a32a;">Up to date</span>
+                    <?php endif; ?>
+                <?php endif; ?>
+                </p>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
+                    <input type="hidden" name="action" value="wir_check_updates" />
+                    <?php wp_nonce_field( 'wir_check_updates' ); ?>
+                    <button type="submit" class="button">Check for Updates</button>
+                </form>
+            </div>
         </div>
         <?php
     }
