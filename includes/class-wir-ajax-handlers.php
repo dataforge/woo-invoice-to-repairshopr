@@ -19,6 +19,54 @@ class WIR_AJAX_Handlers {
         add_action('wp_ajax_woo_inv_to_rs_send_payment_to_repairshopr', array(__CLASS__, 'send_payment'));
         add_action('wp_ajax_woo_inv_to_rs_verify_invoice', array(__CLASS__, 'verify_invoice'));
         add_action('wp_ajax_woo_inv_to_rs_verify_payment', array(__CLASS__, 'verify_payment'));
+        add_action('wp_ajax_woo_inv_to_rs_test_api', array(__CLASS__, 'test_api'));
+    }
+
+    /**
+     * AJAX handler for testing API connection
+     */
+    public static function test_api() {
+        if (!current_user_can('manage_options') || !check_ajax_referer('woo_inv_to_rs_test_api', 'nonce', false)) {
+            wp_send_json_error('Unauthorized');
+        }
+
+        $api_base = WIR_API_Client::get_api_base();
+        $api_key  = WIR_API_Client::get_api_key();
+
+        if (empty($api_base) || empty($api_key)) {
+            wp_send_json_error('API URL or API Key not configured. Save your settings first.');
+        }
+
+        $url = rtrim($api_base, '/') . '/payment_methods';
+        $response = wp_remote_get($url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Accept'        => 'application/json',
+            ),
+            'timeout' => 15,
+        ));
+
+        if (is_wp_error($response)) {
+            wp_send_json_error('Connection failed: ' . $response->get_error_message());
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code === 401 || $code === 403) {
+            wp_send_json_error('Authentication failed (HTTP ' . $code . '). Check your API Key.');
+        }
+
+        if ($code !== 200) {
+            wp_send_json_error('Unexpected response (HTTP ' . $code . '). Check your API URL.');
+        }
+
+        if (!empty($body['payment_methods'])) {
+            $count = count($body['payment_methods']);
+            wp_send_json_success('Connected! Found ' . $count . ' payment method' . ($count !== 1 ? 's' : '') . '.');
+        }
+
+        wp_send_json_success('Connected to RepairShopr API.');
     }
 
     /**

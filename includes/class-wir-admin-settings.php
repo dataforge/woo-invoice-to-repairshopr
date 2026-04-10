@@ -245,6 +245,39 @@ class WIR_Admin_Settings {
                         <td>
                             <input type="text" id="woo_inv_to_rs_api_url" name="woo_inv_to_rs_api_url" value="<?php echo esc_attr($api_url); ?>" class="regular-text" autocomplete="off">
                             <p class="description">Example: <code>https://your-subdomain.repairshopr.com/api/v1</code> (do NOT include <code>/customers</code> or <code>/invoices</code> at the end)</p>
+                            <p style="margin-top:8px;">
+                                <button type="button" id="wir-test-api" class="button">Test API Connection</button>
+                                <span id="wir-test-api-result" style="margin-left:10px;"></span>
+                            </p>
+                            <script>
+                            document.getElementById('wir-test-api').addEventListener('click', function() {
+                                var btn = this;
+                                var result = document.getElementById('wir-test-api-result');
+                                btn.disabled = true;
+                                result.textContent = 'Testing...';
+                                result.style.color = '#666';
+                                var data = new FormData();
+                                data.append('action', 'woo_inv_to_rs_test_api');
+                                data.append('nonce', '<?php echo wp_create_nonce("woo_inv_to_rs_test_api"); ?>');
+                                fetch(ajaxurl, { method: 'POST', body: data })
+                                    .then(function(r) { return r.json(); })
+                                    .then(function(r) {
+                                        if (r.success) {
+                                            result.textContent = r.data;
+                                            result.style.color = '#00a32a';
+                                        } else {
+                                            result.textContent = r.data;
+                                            result.style.color = '#b32d2e';
+                                        }
+                                        btn.disabled = false;
+                                    })
+                                    .catch(function() {
+                                        result.textContent = 'Request failed.';
+                                        result.style.color = '#b32d2e';
+                                        btn.disabled = false;
+                                    });
+                            });
+                            </script>
                         </td>
                     </tr>
                 </table>
