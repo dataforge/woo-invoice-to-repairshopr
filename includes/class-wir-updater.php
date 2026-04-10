@@ -28,7 +28,7 @@ class WIR_Updater {
 			return $update;
 		}
 
-		$remote_version = ltrim( $release->tag_name, 'v' );
+		$remote_version = preg_replace( '/^v/', '', $release->tag_name );
 
 		if ( version_compare( WIR_VERSION, $remote_version, '>=' ) ) {
 			return $update;
@@ -83,7 +83,7 @@ class WIR_Updater {
 			return $result;
 		}
 
-		$remote_version = ltrim( $release->tag_name, 'v' );
+		$remote_version = preg_replace( '/^v/', '', $release->tag_name );
 
 		$info               = new stdClass();
 		$info->name         = 'Woo Invoice to RepairShopr';
@@ -115,13 +115,13 @@ class WIR_Updater {
 		$release = self::fetch_latest_release();
 		$status  = 'up_to_date';
 		if ( $release ) {
-			$remote_version = ltrim( $release->tag_name, 'v' );
+			$remote_version = preg_replace( '/^v/', '', $release->tag_name );
 			if ( version_compare( WIR_VERSION, $remote_version, '<' ) ) {
 				$status = 'update_available';
 			}
 		}
 
-		wp_safe_redirect( add_query_arg( array( 'update_check' => $status ), admin_url( 'admin.php?page=woo-invoice-to-repairshopr' ) ) );
+		wp_safe_redirect( add_query_arg( array( 'update_check' => $status ), admin_url( 'admin.php?page=woo-invoice-to-repairshopr&tab=settings' ) ) );
 		exit;
 	}
 
@@ -130,7 +130,7 @@ class WIR_Updater {
 		if ( ! $release || empty( $release->tag_name ) ) {
 			return false;
 		}
-		$remote_version = ltrim( $release->tag_name, 'v' );
+		$remote_version = preg_replace( '/^v/', '', $release->tag_name );
 		return version_compare( WIR_VERSION, $remote_version, '<' );
 	}
 
