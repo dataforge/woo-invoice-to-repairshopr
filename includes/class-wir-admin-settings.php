@@ -124,11 +124,14 @@ class WIR_Admin_Settings {
             } elseif (!empty($api_key)) {
                 $masked_key = str_repeat('*', strlen($api_key));
             }
-            
+
+            $api_url = get_option('woo_inv_to_rs_api_url', '');
             $customer_url = get_option('woo_inv_to_rs_customer_url', 'https://your-subdomain.repairshopr.com/api/v1/customers');
             $invoice_url = get_option('woo_inv_to_rs_invoice_url', 'https://your-subdomain.repairshopr.com/api/v1/invoices');
             $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
             $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
+            $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
+            $rounding_correction_product_id = get_option('woo_inv_to_rs_rounding_correction_product_id', '');
             $notes = get_option('woo_inv_to_rs_notes', 'Created by WooCommerce');
             $invoice_note = get_option('woo_inv_to_rs_invoice_note', 'Order created from WooCommerce');
             $get_sms = get_option('woo_inv_to_rs_get_sms', '1');
