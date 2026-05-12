@@ -103,8 +103,6 @@ class WIR_Invoice_Handler {
                 error_log('woo_inv_to_rs: Adding coupon discount line "' . $coupon_name . '" with value: ' . $coupon_line_total);
 
                 $line_items[] = array(
-                    'item' => $coupon_name,
-                    'name' => $coupon_name,
                     'product_id' => $coupon_product_id,
                     'quantity' => 1,
                     'cost' => 0,
@@ -114,6 +112,7 @@ class WIR_Invoice_Handler {
                     'upc_code' => '',
                     'tax_note' => '',
                     'wc_line_total' => $coupon_line_total,
+                    'coupon_code' => $coupon_code,
                     'force_price_update' => true
                 );
                 $line_item_totals[] = $coupon_line_total;
@@ -274,6 +273,7 @@ class WIR_Invoice_Handler {
                     isset($li['item']) && $li['item'] == $epf_name
                 );
                 $force_price_update = !empty($li['force_price_update']);
+                $is_coupon = isset($li['coupon_code']);
                 
                 error_log('woo_inv_to_rs: Processing line item - EPF Name: "' . $epf_name . '", EPF Product ID: "' . $epf_product_id . '", Is EPF: ' . ($is_epf ? 'true' : 'false'));
                 if (isset($li['item'])) {
@@ -341,16 +341,39 @@ class WIR_Invoice_Handler {
                             }
                         }
                         
-                        $update_line_item = array(
-                            'id' => $line_item_id,
-                            'line_discount_percent' => 0,
-                            'discount_dollars' => '0',
-                            'item' => isset($li['item']) ? $li['item'] : '',
-                            'name' => isset($li['name']) ? $li['name'] : (isset($li['item']) ? $li['item'] : ''),
-                            'price' => $epf_price,
-                            'cost' => 0,
-                            'taxable' => isset($li['taxable']) ? $li['taxable'] : false
-                        );
+                        if ($is_coupon) {
+                            $rs_item_name = '';
+                            if (isset($line_item['item']) && $line_item['item'] !== '') {
+                                $rs_item_name = $line_item['item'];
+                            } elseif (isset($line_item['name']) && $line_item['name'] !== '') {
+                                $rs_item_name = $line_item['name'];
+                            }
+
+                            $update_line_item = array(
+                                'id' => $line_item_id,
+                                'line_discount_percent' => 0,
+                                'discount_dollars' => '0',
+                                'price' => $epf_price,
+                                'cost' => 0,
+                                'taxable' => isset($li['taxable']) ? $li['taxable'] : false
+                            );
+
+                            if ($rs_item_name !== '') {
+                                $update_line_item['item'] = $rs_item_name;
+                                $update_line_item['name'] = $rs_item_name;
+                            }
+                        } else {
+                            $update_line_item = array(
+                                'id' => $line_item_id,
+                                'line_discount_percent' => 0,
+                                'discount_dollars' => '0',
+                                'item' => isset($li['item']) ? $li['item'] : '',
+                                'name' => isset($li['name']) ? $li['name'] : (isset($li['item']) ? $li['item'] : ''),
+                                'price' => $epf_price,
+                                'cost' => 0,
+                                'taxable' => isset($li['taxable']) ? $li['taxable'] : false
+                            );
+                        }
                         
                         error_log('woo_inv_to_rs: Product-backed line item detected - updating price to: ' . $epf_price);
                         error_log('RepairShopr API Request (Update Product Line Item Price): ' . json_encode($update_line_item));
