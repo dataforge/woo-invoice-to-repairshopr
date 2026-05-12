@@ -42,8 +42,11 @@ class WIR_Invoice_Handler {
         $wc_total_tax = $order->get_total_tax();
         $wc_total = $order->get_total();
         $wc_fees_total = 0;
+        $wc_discount_total = floatval($order->get_discount_total());
+        $coupon_product_id = trim(get_option('woo_inv_to_rs_coupon_product_id', ''));
+        $send_coupon_lines = ($coupon_product_id !== '' && $wc_discount_total > 0);
         
-        error_log('woo_inv_to_rs: WooCommerce Authoritative Totals - Subtotal: ' . $wc_subtotal . ', Tax: ' . $wc_total_tax . ', Total: ' . $wc_total);
+        error_log('woo_inv_to_rs: WooCommerce Authoritative Totals - Subtotal: ' . $wc_subtotal . ', Discount: ' . $wc_discount_total . ', Tax: ' . $wc_total_tax . ', Total: ' . $wc_total);
 
         // Build line_items array from order items with precision handling
         $line_items = array();
@@ -55,8 +58,9 @@ class WIR_Invoice_Handler {
             $product_id = $sku ? $sku : 0;
             $quantity = $item->get_quantity();
             
-            // Use WooCommerce's calculated line total, not recalculated price
-            $line_total = $item->get_total();
+            // If coupon lines are exported separately, keep products at their pre-discount subtotal.
+            // Otherwise preserve the historic behavior of using WooCommerce's discounted line total.
+            $line_total = $send_coupon_lines ? $order->get_line_subtotal($item, false, false) : $item->get_total();
             $price = $quantity > 0 ? $line_total / $quantity : 0;
             
             // Store with high precision for later adjustment
@@ -76,6 +80,46 @@ class WIR_Invoice_Handler {
                 'taxable' => $taxable_flag,
                 'wc_line_total' => $line_total // Store WooCommerce line total for reference
             );
+        }
+
+        // Add WooCommerce coupons as RepairShopr discount line items if configured.
+        if ($send_coupon_lines) {
+            foreach ($order->get_coupon_codes() as $coupon_code) {
+                $coupon_discount = 0;
+
+                foreach ($order->get_items('coupon') as $coupon_item) {
+                    if (strcasecmp($coupon_item->get_code(), $coupon_code) === 0) {
+                        $coupon_discount += floatval($coupon_item->get_discount());
+                    }
+                }
+
+                if ($coupon_discount <= 0) {
+                    continue;
+                }
+
+                $coupon_line_total = -1 * $coupon_discount;
+                $coupon_name = sprintf('Coupon: %s', $coupon_code);
+
+                error_log('woo_inv_to_rs: Adding coupon discount line "' . $coupon_name . '" with value: ' . $coupon_line_total);
+
+                $line_items[] = array(
+                    'item' => $coupon_name,
+                    'name' => $coupon_name,
+                    'product_id' => $coupon_product_id,
+                    'quantity' => 1,
+                    'cost' => 0,
+                    'price' => $coupon_line_total,
+                    'discount_percent' => 0,
+                    'taxable' => false,
+                    'upc_code' => '',
+                    'tax_note' => '',
+                    'wc_line_total' => $coupon_line_total,
+                    'force_price_update' => true
+                );
+                $line_item_totals[] = $coupon_line_total;
+            }
+        } elseif ($wc_discount_total > 0) {
+            error_log('woo_inv_to_rs: Order has coupon discounts, but no RepairShopr coupon Product ID is configured. Coupon line items were not exported.');
         }
 
         // Add Electronic Payment Fee as a line item if present
@@ -114,8 +158,8 @@ class WIR_Invoice_Handler {
         // Calculate current subtotal from line items
         $calculated_subtotal = array_sum($line_item_totals);
         
-        // Apply precision correction to ensure exact match with WooCommerce subtotal + fees
-        $target_subtotal = $wc_subtotal + $wc_fees_total;
+        // Apply precision correction to ensure exact match with WooCommerce subtotal after discounts and fees
+        $target_subtotal = $wc_subtotal + $wc_fees_total - $wc_discount_total;
         $subtotal_difference = $target_subtotal - $calculated_subtotal;
         
         error_log('woo_inv_to_rs: Subtotal Analysis - WC Subtotal: ' . $wc_subtotal . ', WC Fees: ' . $wc_fees_total . ', Target: ' . $target_subtotal . ', Calculated: ' . $calculated_subtotal . ', Difference: ' . $subtotal_difference);
@@ -229,6 +273,7 @@ class WIR_Invoice_Handler {
                     isset($li['product_id']) && $li['product_id'] == $epf_product_id &&
                     isset($li['item']) && $li['item'] == $epf_name
                 );
+                $force_price_update = !empty($li['force_price_update']);
                 
                 error_log('woo_inv_to_rs: Processing line item - EPF Name: "' . $epf_name . '", EPF Product ID: "' . $epf_product_id . '", Is EPF: ' . ($is_epf ? 'true' : 'false'));
                 if (isset($li['item'])) {
@@ -250,6 +295,11 @@ class WIR_Invoice_Handler {
                         'quantity' => isset($li['quantity']) ? floatval($li['quantity']) : 1.0,
                         'taxable' => isset($li['taxable']) ? $li['taxable'] : false
                     );
+
+                    if ($force_price_update && !empty($li['item'])) {
+                        $li_body['item'] = $li['item'];
+                        $li_body['name'] = isset($li['name']) ? $li['name'] : $li['item'];
+                    }
                 } else {
                     $li_body = array(
                         'id' => 0,
@@ -271,7 +321,7 @@ class WIR_Invoice_Handler {
                     error_log('Failed to add line item to invoice ' . $invoice_id);
                 } else {
                     // Special handling for Electronic Payment Fee: update price with PUT if needed
-                    if ($is_epf && isset($line_item['id'])) {
+                    if (($is_epf || $force_price_update) && isset($line_item['id'])) {
                         $line_item_id = $line_item['id'];
                         $epf_price = isset($li['price']) ? floatval($li['price']) : 0.0;
                         
@@ -292,22 +342,29 @@ class WIR_Invoice_Handler {
                         }
                         
                         $update_line_item = array(
-                            'price' => $epf_price
+                            'id' => $line_item_id,
+                            'line_discount_percent' => 0,
+                            'discount_dollars' => '0',
+                            'item' => isset($li['item']) ? $li['item'] : '',
+                            'name' => isset($li['name']) ? $li['name'] : (isset($li['item']) ? $li['item'] : ''),
+                            'price' => $epf_price,
+                            'cost' => 0,
+                            'taxable' => isset($li['taxable']) ? $li['taxable'] : false
                         );
                         
-                        error_log('woo_inv_to_rs: Electronic Payment Fee detected - updating price to: ' . $epf_price);
-                        error_log('RepairShopr API Request (Update Fee Line Item): ' . json_encode($update_line_item));
+                        error_log('woo_inv_to_rs: Product-backed line item detected - updating price to: ' . $epf_price);
+                        error_log('RepairShopr API Request (Update Product Line Item Price): ' . json_encode($update_line_item));
                         
                         $updated_line_item = WIR_API_Client::update_line_item($invoice_id, $line_item_id, $update_line_item);
                         
                         if ($updated_line_item) {
-                            error_log('woo_inv_to_rs: Electronic Payment Fee line item successfully updated with price: ' . $epf_price);
+                            error_log('woo_inv_to_rs: Product-backed line item successfully updated with price: ' . $epf_price);
                             error_log('RepairShopr Line Item Updated: ' . json_encode($updated_line_item));
                         } else {
-                            error_log('woo_inv_to_rs: Electronic Payment Fee line item update failed.');
+                            error_log('woo_inv_to_rs: Product-backed line item update failed.');
                         }
-                    } elseif ($is_epf) {
-                        error_log('woo_inv_to_rs: Electronic Payment Fee detected but could not get line_item ID from response');
+                    } elseif ($is_epf || $force_price_update) {
+                        error_log('woo_inv_to_rs: Product-backed line item detected but could not get line_item ID from response');
                     }
                 }
             }
@@ -360,7 +417,14 @@ class WIR_Invoice_Handler {
                         
                         // Update the rounding correction price with PUT request (same approach as EPF)
                         $update_rounding_item = array(
-                            'price' => $rounded_difference
+                            'id' => $rounding_line_item_id,
+                            'line_discount_percent' => 0,
+                            'discount_dollars' => '0',
+                            'item' => 'Rounding Correction',
+                            'name' => 'Rounding Correction',
+                            'price' => $rounded_difference,
+                            'cost' => 0,
+                            'taxable' => false
                         );
                         
                         error_log('woo_inv_to_rs: Rounding correction detected - updating price to: ' . $rounded_difference);

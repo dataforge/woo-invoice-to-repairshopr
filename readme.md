@@ -4,6 +4,7 @@
 
 - Check if the customer exists in RepairShopr (by email) and create them if needed.
 - Create a corresponding invoice in RepairShopr, including line items and fees from the WooCommerce order.
+- Optionally export WooCommerce coupon discounts as mapped RepairShopr line items with negative prices.
 - Sync the invoice as paid in RepairShopr, ensuring your sales and customer records are up to date across both platforms.
 - Provide a manual "Send to RepairShopr" button in the WooCommerce admin orders list for on-demand syncing.
 

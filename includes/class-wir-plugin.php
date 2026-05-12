@@ -14,7 +14,7 @@ class WIR_Plugin {
     /**
      * Plugin version
      */
-    const VERSION = '1.11';
+    const VERSION = WIR_VERSION;
     
     /**
      * Single instance of the plugin

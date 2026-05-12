@@ -98,6 +98,7 @@ class WIR_Admin_Settings {
         $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
         $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
         $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
+        $coupon_product_id = get_option('woo_inv_to_rs_coupon_product_id', '');
         $rounding_correction_name = get_option('woo_inv_to_rs_rounding_correction_name', '');
         $rounding_correction_product_id = get_option('woo_inv_to_rs_rounding_correction_product_id', '');
         $notes = get_option('woo_inv_to_rs_notes', 'Created by WooCommerce');
@@ -131,6 +132,7 @@ class WIR_Admin_Settings {
             $tax_rate_id = get_option('woo_inv_to_rs_tax_rate_id', '40354');
             $epf_product_id = get_option('woo_inv_to_rs_epf_product_id', '9263351');
             $epf_name = get_option('woo_inv_to_rs_epf_name', 'Electronic Payment Fee');
+            $coupon_product_id = get_option('woo_inv_to_rs_coupon_product_id', '');
             $rounding_correction_product_id = get_option('woo_inv_to_rs_rounding_correction_product_id', '');
             $notes = get_option('woo_inv_to_rs_notes', 'Created by WooCommerce');
             $invoice_note = get_option('woo_inv_to_rs_invoice_note', 'Order created from WooCommerce');
@@ -146,7 +148,7 @@ class WIR_Admin_Settings {
             $is_paid = get_option('woo_inv_to_rs_is_paid', '1');
         }
 
-        self::render_settings_form($masked_key, $api_url, $customer_url, $invoice_url, $tax_rate_id, $epf_product_id, $epf_name, $rounding_correction_product_id, $notes, $invoice_note, $get_sms, $opt_out, $no_email, $get_billing, $get_marketing, $get_reports, $taxable, $verified_paid, $tech_marked_paid, $is_paid);
+        self::render_settings_form($masked_key, $api_url, $customer_url, $invoice_url, $tax_rate_id, $epf_product_id, $epf_name, $coupon_product_id, $rounding_correction_product_id, $notes, $invoice_note, $get_sms, $opt_out, $no_email, $get_billing, $get_marketing, $get_reports, $taxable, $verified_paid, $tech_marked_paid, $is_paid);
     }
 
     /**
@@ -197,6 +199,7 @@ class WIR_Admin_Settings {
         update_option('woo_inv_to_rs_tax_rate_id', sanitize_text_field($_POST['woo_inv_to_rs_tax_rate_id']));
         update_option('woo_inv_to_rs_epf_name', sanitize_text_field($_POST['woo_inv_to_rs_epf_name']));
         update_option('woo_inv_to_rs_epf_product_id', sanitize_text_field($_POST['woo_inv_to_rs_epf_product_id']));
+        update_option('woo_inv_to_rs_coupon_product_id', isset($_POST['woo_inv_to_rs_coupon_product_id']) ? trim(sanitize_text_field($_POST['woo_inv_to_rs_coupon_product_id'])) : '');
         update_option('woo_inv_to_rs_notes', sanitize_text_field($_POST['woo_inv_to_rs_notes']));
         update_option('woo_inv_to_rs_invoice_note', sanitize_text_field($_POST['woo_inv_to_rs_invoice_note']));
         
@@ -227,7 +230,7 @@ class WIR_Admin_Settings {
     /**
      * Render settings form
      */
-    private static function render_settings_form($masked_key, $api_url, $customer_url, $invoice_url, $tax_rate_id, $epf_product_id, $epf_name, $rounding_correction_product_id, $notes, $invoice_note, $get_sms, $opt_out, $no_email, $get_billing, $get_marketing, $get_reports, $taxable, $verified_paid, $tech_marked_paid, $is_paid) {
+    private static function render_settings_form($masked_key, $api_url, $customer_url, $invoice_url, $tax_rate_id, $epf_product_id, $epf_name, $coupon_product_id, $rounding_correction_product_id, $notes, $invoice_note, $get_sms, $opt_out, $no_email, $get_billing, $get_marketing, $get_reports, $taxable, $verified_paid, $tech_marked_paid, $is_paid) {
         ?>
         <div style="margin-top:2em;">
             <form method="post" action="">
@@ -334,6 +337,13 @@ class WIR_Admin_Settings {
                         <td>
                             <input type="text" id="woo_inv_to_rs_epf_product_id" name="woo_inv_to_rs_epf_product_id" value="<?php echo esc_attr($epf_product_id); ?>" class="regular-text" autocomplete="off">
                             <p class="description">Optional. Enter the RepairShopr Product ID to use for the electronic payment fee. <strong>If you enter a value here, you must also enter a Fee Name above. Both fields must be filled for the fee to be exported. If both are left blank, no fee will be exported to RepairShopr.</strong></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="woo_inv_to_rs_coupon_product_id">Coupon Discount Product ID</label></th>
+                        <td>
+                            <input type="text" id="woo_inv_to_rs_coupon_product_id" name="woo_inv_to_rs_coupon_product_id" value="<?php echo esc_attr($coupon_product_id); ?>" class="regular-text" autocomplete="off">
+                            <p class="description">Optional. Enter the RepairShopr Product ID to use for WooCommerce coupon discounts. Each coupon will be exported as a non-taxable line item with a negative price. If this field is blank, coupon discounts stay folded into WooCommerce product line totals.</p>
                         </td>
                     </tr>
                     <tr>
