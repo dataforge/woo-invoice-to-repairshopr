@@ -212,6 +212,9 @@ jQuery(document).ready(function($) {
                         button.text('RS Payment Unpaid')
                               .css('background-color', 'red')
                               .css('color', 'white');
+                        if (response.data && response.data.warning) {
+                            alert(response.data.warning);
+                        }
                     }
                 } else {
                     button.text('Payment Verify Failed')

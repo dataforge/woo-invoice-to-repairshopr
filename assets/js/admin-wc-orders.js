@@ -264,6 +264,9 @@
                                                         button.style.backgroundColor = 'red';
                                                         button.style.color = 'white';
                                                         button.classList.remove('is-secondary');
+                                                        if (response.data.warning) {
+                                                            alert(response.data.warning);
+                                                        }
                                                     } else {
                                                         button.textContent = 'Error (Unexpected)';
                                                         button.style.backgroundColor = '';

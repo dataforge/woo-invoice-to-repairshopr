@@ -10,7 +10,118 @@ if (!defined('ABSPATH')) {
 }
 
 class WIR_Payment_Handler {
-    
+
+    /**
+     * Order meta holding the ID of the RepairShopr payment this plugin created for the order.
+     */
+    const META_RS_PAYMENT_ID = '_wir_rs_payment_id';
+
+    /**
+     * Pages of GET /payments (25 per page, newest first) to scan for a matching ref_num.
+     * RS ignores a customer_id filter on this endpoint, so the scan is the only way to
+     * find a payment that is not listed on its invoice.
+     */
+    const PAYMENT_SCAN_MAX_PAGES = 10;
+
+    /**
+     * Find a RepairShopr payment already recorded for this order, whether or not RS
+     * applied it to the invoice.
+     *
+     * RS accepts a payment larger than the invoice total and reports success, but keeps
+     * it off the invoice's payments list. Checking the invoice alone therefore lets a
+     * second payment through (orders 10108 and 1529, Nov 2026).
+     *
+     * @param WC_Order $order
+     * @param int $invoice_id RepairShopr invoice ID
+     * @return array { payment: array|null, applied: bool, error: string }
+     */
+    public static function find_existing_payment($order, $invoice_id) {
+        $transaction_id = (string) $order->get_transaction_id();
+
+        // 1. A payment RS lists on the invoice.
+        $on_invoice = self::check_payment_exists($invoice_id, $order->get_total(), $transaction_id);
+        if ($on_invoice) {
+            return array('payment' => $on_invoice, 'applied' => true, 'error' => '');
+        }
+
+        // 2. The payment this plugin created for the order earlier.
+        $stored_id = $order->get_meta(self::META_RS_PAYMENT_ID);
+        if ($stored_id) {
+            $res = WIR_API_Client::get('payments/' . rawurlencode($stored_id));
+            if (!is_wp_error($res) && isset($res['payment'])) {
+                return array('payment' => $res['payment'], 'applied' => false, 'error' => '');
+            }
+            $http_code = 0;
+            if (is_wp_error($res)) {
+                $data = $res->get_error_data();
+                $http_code = is_array($data) && isset($data['http_code']) ? (int) $data['http_code'] : 0;
+            }
+            if ($http_code !== 404) {
+                $reason = is_wp_error($res) ? $res->get_error_message() : 'unexpected response';
+                return array('payment' => null, 'applied' => false, 'error' => 'Could not check RepairShopr payment #' . $stored_id . ' (' . $reason . ').');
+            }
+            // Deleted in RepairShopr: forget it so a new payment can be sent.
+            error_log('woo_inv_to_rs: Stored RS payment ' . $stored_id . ' for order ' . $order->get_id() . ' no longer exists; clearing it.');
+            $order->delete_meta_data(self::META_RS_PAYMENT_ID);
+            $order->save();
+        }
+
+        // 3. Same transaction reference among recent payments (covers orders paid before
+        //    the payment ID was stored).
+        if ($transaction_id !== '') {
+            $found = self::find_payment_by_ref($transaction_id, $order);
+            if (is_wp_error($found)) {
+                return array('payment' => null, 'applied' => false, 'error' => 'Could not search RepairShopr payments (' . $found->get_error_message() . ').');
+            }
+            if ($found) {
+                return array('payment' => $found, 'applied' => false, 'error' => '');
+            }
+        }
+
+        return array('payment' => null, 'applied' => false, 'error' => '');
+    }
+
+    /**
+     * Scan recent RepairShopr payments (newest first) for one with this ref_num, stopping
+     * once payments are older than the order.
+     *
+     * @param string $ref_num WooCommerce transaction ID
+     * @param WC_Order $order
+     * @return array|false|WP_Error Matching payment, false if none, WP_Error on API failure
+     */
+    private static function find_payment_by_ref($ref_num, $order) {
+        $created = $order->get_date_created();
+        $cutoff = $created ? $created->getTimestamp() - DAY_IN_SECONDS : 0;
+
+        for ($page = 1; $page <= self::PAYMENT_SCAN_MAX_PAGES; $page++) {
+            $res = WIR_API_Client::get('payments', array('page' => $page));
+            if (is_wp_error($res)) {
+                return $res;
+            }
+            $payments = isset($res['payments']) && is_array($res['payments']) ? $res['payments'] : array();
+            if (empty($payments)) {
+                return false;
+            }
+            foreach ($payments as $payment) {
+                if (isset($payment['ref_num']) && (string) $payment['ref_num'] === $ref_num) {
+                    error_log('woo_inv_to_rs: Found RS payment ' . $payment['id'] . ' with ref_num ' . $ref_num);
+                    return $payment;
+                }
+            }
+            $last = end($payments);
+            $last_ts = isset($last['created_at']) ? strtotime($last['created_at']) : false;
+            if ($last_ts !== false && $last_ts < $cutoff) {
+                return false;
+            }
+            if (isset($res['meta']['total_pages']) && $page >= (int) $res['meta']['total_pages']) {
+                return false;
+            }
+        }
+
+        error_log('woo_inv_to_rs: Scanned ' . self::PAYMENT_SCAN_MAX_PAGES . ' pages of RS payments without reaching order ' . $order->get_id() . ' date; no ref_num match found.');
+        return false;
+    }
+
     /**
      * Check if a payment already exists for an invoice in RepairShopr
      *
@@ -131,14 +242,48 @@ class WIR_Payment_Handler {
         $invoice_id = $invoice['id'];
         error_log('woo_inv_to_rs: Found invoice_id: ' . $invoice_id . ' for order_id: ' . $order_id);
 
-        // Check if payment already exists for this invoice
-        $order_total = $order->get_total();
-        $transaction_id = $order->get_transaction_id();
-        $existing_payment = self::check_payment_exists($invoice_id, $order_total, $transaction_id);
-        
-        if ($existing_payment) {
-            error_log('woo_inv_to_rs: Payment already exists for invoice ' . $invoice_id . ' with Payment ID: ' . $existing_payment['id']);
-            return array('success' => false, 'message' => 'Payment already exists for this invoice in RepairShopr.');
+        // The RS invoice total must match the order. If RS calculated it differently
+        // (e.g. a line saved at qty 0, or its own tax), RS accepts the payment but does
+        // not apply it, and the invoice keeps showing as unpaid.
+        $wc_total_cents = intval(round(floatval($order->get_total()) * 100));
+        $rs_total_cents = isset($invoice['total']) ? intval(round(floatval($invoice['total']) * 100)) : null;
+        if ($rs_total_cents === null || $rs_total_cents !== $wc_total_cents) {
+            $msg = sprintf(
+                'RepairShopr invoice %s total is $%s but the WooCommerce order total is $%s. Payment was not sent. Fix the invoice in RepairShopr so the totals match, then click Send Payment.',
+                $invoice_number,
+                $rs_total_cents === null ? '?' : number_format($rs_total_cents / 100, 2, '.', ''),
+                number_format($wc_total_cents / 100, 2, '.', '')
+            );
+            error_log('woo_inv_to_rs: ' . $msg);
+            $order->add_order_note($msg);
+            return array('success' => false, 'message' => $msg);
+        }
+
+        // Check for a payment already recorded for this order, applied or not
+        $existing = self::find_existing_payment($order, $invoice_id);
+
+        if ($existing['error'] !== '') {
+            $msg = $existing['error'] . ' Payment was not sent, to avoid a duplicate.';
+            error_log('woo_inv_to_rs: ' . $msg);
+            return array('success' => false, 'message' => $msg);
+        }
+
+        if ($existing['payment']) {
+            $existing_id = isset($existing['payment']['id']) ? $existing['payment']['id'] : '?';
+            if ($existing['applied']) {
+                error_log('woo_inv_to_rs: Payment already exists for invoice ' . $invoice_id . ' with Payment ID: ' . $existing_id);
+                return array('success' => false, 'message' => 'Payment already exists for this invoice in RepairShopr.');
+            }
+            $msg = sprintf(
+                'RepairShopr payment #%s ($%s, ref %s) already exists for this order but is not applied to invoice %s. Apply that payment to the invoice in RepairShopr instead of sending a new one.',
+                $existing_id,
+                isset($existing['payment']['payment_amount']) ? number_format(floatval($existing['payment']['payment_amount']), 2, '.', '') : '?',
+                isset($existing['payment']['ref_num']) && $existing['payment']['ref_num'] !== '' ? $existing['payment']['ref_num'] : 'none',
+                $invoice_number
+            );
+            error_log('woo_inv_to_rs: ' . $msg);
+            $order->add_order_note($msg);
+            return array('success' => false, 'message' => $msg);
         }
 
         // Prepare payment data - use exact WooCommerce total with precision handling
@@ -239,24 +384,44 @@ class WIR_Payment_Handler {
         }
 
         if (!empty($payment['success'])) {
-            error_log('woo_inv_to_rs: Payment successfully applied in RepairShopr for order ' . $order_id);
-
-            // Additional debug: fetch payment details and compare invoice_ids
             $payment_id = isset($payment['id']) ? $payment['id'] : null;
-            if ($payment_id) {
-                $payment_details = WIR_API_Client::get('payments/' . $payment_id);
-                if ($payment_details && !is_wp_error($payment_details)) {
-                    $applied_invoice_ids = isset($payment_details['payment']['invoice_ids']) ? $payment_details['payment']['invoice_ids'] : [];
-                    $logline = date('c') . ' woo_inv_to_rs: Payment ID ' . $payment_id . ' applied to invoice_ids: ' . json_encode($applied_invoice_ids) . ' (expected: ' . $invoice_id . ')' . PHP_EOL;
-                    error_log('woo_inv_to_rs: Payment ID ' . $payment_id . ' applied to invoice_ids: ' . json_encode($applied_invoice_ids) . ' (expected: ' . $invoice_id . ')');
-                    if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
-                        $logfile = WP_CONTENT_DIR . '/debug.log';
-                        file_put_contents($logfile, $logline, FILE_APPEND);
+            if (!$payment_id) {
+                error_log('woo_inv_to_rs: Could not extract payment ID from RepairShopr response.');
+                $order->add_order_note('RepairShopr: payment created but RepairShopr did not return its ID. Check the invoice in RepairShopr before sending again.');
+                return array('success' => true, 'message' => 'Payment sent to RepairShopr, but RepairShopr did not return its ID. Check the invoice in RepairShopr.');
+            }
+
+            // Remember the payment so later sends can find it even if RS leaves it off the invoice.
+            $order->update_meta_data(self::META_RS_PAYMENT_ID, (string) $payment_id);
+            $order->save();
+
+            // Confirm RS actually applied it: the payment response lists invoice_ids even
+            // when the invoice itself shows no payment.
+            $applied = false;
+            $check = WIR_API_Client::get('invoices/' . $invoice_id);
+            if (!is_wp_error($check) && !empty($check['invoice']['payments']) && is_array($check['invoice']['payments'])) {
+                foreach ($check['invoice']['payments'] as $applied_payment) {
+                    if (isset($applied_payment['id']) && (string) $applied_payment['id'] === (string) $payment_id) {
+                        $applied = true;
+                        break;
                     }
                 }
-            } else {
-                error_log('woo_inv_to_rs: Could not extract payment ID from RepairShopr response.');
             }
+
+            if (!$applied) {
+                $msg = sprintf(
+                    'RepairShopr payment #%s ($%s) was created but RepairShopr has not applied it to invoice %s. Apply it to the invoice in RepairShopr. Do not send another payment.',
+                    $payment_id,
+                    $payment_amount,
+                    $invoice_number
+                );
+                error_log('woo_inv_to_rs: ' . $msg);
+                $order->add_order_note($msg);
+                return array('success' => false, 'message' => $msg);
+            }
+
+            error_log('woo_inv_to_rs: Payment ' . $payment_id . ' successfully applied in RepairShopr for order ' . $order_id);
+            $order->add_order_note(sprintf('RepairShopr: payment #%s ($%s) applied to invoice %s.', $payment_id, $payment_amount, $invoice_number));
 
             return array('success' => true, 'message' => 'Payment successfully applied in RepairShopr.');
         } else {
@@ -375,12 +540,31 @@ class WIR_Payment_Handler {
                 'details' => $payment_details
             );
         } else {
-            return array(
+            $result = array(
                 'success' => true,
                 'message' => 'Invoice is Unpaid!',
                 'paid' => false,
                 'details' => $payment_details
             );
+
+            // An unpaid invoice may still have a payment RS recorded but did not apply.
+            // Say so, so nobody sends a second one.
+            if (isset($invoice['id'])) {
+                $existing = self::find_existing_payment($order, $invoice['id']);
+                if ($existing['payment'] && !$existing['applied']) {
+                    $result['warning'] = sprintf(
+                        'RepairShopr shows invoice %s as unpaid, but payment #%s ($%s) already exists for this order and is not applied to it. Apply that payment to the invoice in RepairShopr. Do not click Send Payment.',
+                        $invoice_number,
+                        isset($existing['payment']['id']) ? $existing['payment']['id'] : '?',
+                        isset($existing['payment']['payment_amount']) ? number_format(floatval($existing['payment']['payment_amount']), 2, '.', '') : '?'
+                    );
+                    $result['message'] = $result['warning'];
+                } elseif ($existing['error'] !== '') {
+                    $result['warning'] = $existing['error'] . ' Check RepairShopr for an existing payment before clicking Send Payment.';
+                }
+            }
+
+            return $result;
         }
     }
 }
